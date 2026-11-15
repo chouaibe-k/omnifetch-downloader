@@ -1008,9 +1008,21 @@
 
     const isAudio = !!selectedOption.is_audio;
     const formatLabel = isAudio ? 'MP3 Audio' : `MP4 Video (${selectedOption.label})`;
-    const buttonApiUrl = isAudio 
-      ? `https://api.vevioz.com/api/button/mp3?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`
-      : `https://api.vevioz.com/api/button/mp4?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
+    
+    let primaryButtonUrl = '';
+    let fallbackConverterUrl = '';
+
+    if (currentMedia.vid) {
+      primaryButtonUrl = isAudio 
+        ? `https://api.vevioz.com/api/button/mp3/${encodeURIComponent(currentMedia.vid)}`
+        : `https://api.vevioz.com/api/button/videos/${encodeURIComponent(currentMedia.vid)}`;
+      fallbackConverterUrl = `https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}`;
+    } else {
+      primaryButtonUrl = isAudio 
+        ? `https://api.vevioz.com/api/button/mp3?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`
+        : `https://api.vevioz.com/api/button/videos?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
+      fallbackConverterUrl = `https://api.vevioz.com/api/widget?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
+    }
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
@@ -1045,8 +1057,8 @@
             `}
           </div>
           <p class="inapp-converter-subtitle">Click the download button below to save your ${isAudio ? 'MP3 audio track' : 'MP4 video'} directly to your Downloads folder:</p>
-          <div class="inapp-button-frame-wrapper">
-            <iframe id="inappDownloaderFrame" class="inapp-button-frame" src="${buttonApiUrl}" allow="clipboard-write" scrolling="no"></iframe>
+          <div class="inapp-button-frame-wrapper" id="inappWrapper">
+            <iframe id="inappDownloaderFrame" class="inapp-button-frame" src="${primaryButtonUrl}" allow="clipboard-write; downloads" scrolling="no"></iframe>
           </div>
         </div>
 
@@ -1070,6 +1082,10 @@
               Switch to MP3 Audio Only
             </button>
           `}
+          <button type="button" class="direct-dl-btn secondary" id="toggleMirrorBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
+            <span id="toggleMirrorText">Alternative Converter Table</span>
+          </button>
           ${currentMedia.embed_url ? `
             <button type="button" class="direct-dl-btn secondary" id="launchPlayerBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -1088,6 +1104,27 @@
     window.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'vevioz-api-download' && typeof event.data.url === 'string') {
         triggerStreamDownload(event.data.url, filename);
+      }
+    });
+
+    let isMirrorActive = false;
+    document.getElementById('toggleMirrorBtn')?.addEventListener('click', () => {
+      isMirrorActive = !isMirrorActive;
+      const frame = document.getElementById('inappDownloaderFrame');
+      const wrapper = document.getElementById('inappWrapper');
+      const text = document.getElementById('toggleMirrorText');
+      if (frame && wrapper) {
+        if (isMirrorActive) {
+          frame.src = fallbackConverterUrl;
+          wrapper.style.height = '280px';
+          frame.style.height = '275px';
+          if (text) text.textContent = 'Switch to Single Quick Button';
+        } else {
+          frame.src = primaryButtonUrl;
+          wrapper.style.height = '75px';
+          frame.style.height = '75px';
+          if (text) text.textContent = 'Alternative Converter Table';
+        }
       }
     });
 

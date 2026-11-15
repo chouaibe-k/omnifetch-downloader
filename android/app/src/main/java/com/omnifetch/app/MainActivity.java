@@ -33,6 +33,15 @@ public class MainActivity extends BridgeActivity {
         try {
             WebView webView = this.getBridge().getWebView();
             if (webView != null) {
+                // Enable WebSettings for seamless in-app converter iframe support
+                android.webkit.WebSettings webSettings = webView.getSettings();
+                webSettings.setJavaScriptEnabled(true);
+                webSettings.setDomStorageEnabled(true);
+                webSettings.setDatabaseEnabled(true);
+                webSettings.setAllowFileAccess(true);
+                webSettings.setAllowContentAccess(true);
+                webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+
                 // Expose AndroidBridge into JavaScript context
                 webView.addJavascriptInterface(new AndroidBridge(this), "AndroidBridge");
 
