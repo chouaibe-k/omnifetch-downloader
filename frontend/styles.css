@@ -400,6 +400,15 @@ body {
   background: var(--accent-hover);
 }
 
+.fetch-btn.audio-btn {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  color: #ffffff;
+}
+
+.fetch-btn.audio-btn:hover {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
 .btn-spinner {
   width: 16px;
   height: 16px;
@@ -977,6 +986,22 @@ body {
   transform: translateY(-1px);
 }
 
+.download-btn.audio-dl-btn {
+  background: linear-gradient(135deg, #8b5cf6, #6366f1);
+  box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+}
+
+.download-btn.audio-dl-btn:hover {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5);
+}
+
+.action-buttons-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 /* Progress Box */
 .progress-box {
   background: var(--bg-input);
@@ -1342,13 +1367,13 @@ body {
 
 .inapp-converter-box {
   width: 100%;
-  padding: 12px 14px;
-  background: rgba(17, 24, 39, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 14px 16px;
+  background: rgba(17, 24, 39, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   margin-top: 6px;
 }
 
@@ -1356,15 +1381,34 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text-primary);
 }
 
 .inapp-converter-subtitle {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   color: var(--text-secondary);
+  line-height: 1.4;
   margin: 0;
+}
+
+.inapp-button-frame-wrapper {
+  width: 100%;
+  height: 70px;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.inapp-button-frame {
+  width: 100%;
+  height: 68px;
+  border: none;
+  background: transparent;
 }
 
 /* Utilities */

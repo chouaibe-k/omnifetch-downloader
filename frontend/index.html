@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=12">
+  <link rel="stylesheet" href="./styles.css?v=14">
 </head>
 <body class="theme-dark">
   <div id="app" class="app-container">
@@ -120,13 +120,24 @@
               </button>
 
               <!-- Prominent Download Video Button -->
-              <button id="downloadBtn" class="fetch-btn" type="button">
+              <button id="downloadBtn" class="fetch-btn" type="button" title="Download Full Video (MP4)">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                   <polyline points="7 10 12 15 17 10"></polyline>
                   <line x1="12" y1="15" x2="12" y2="3"></line>
                 </svg>
-                <span class="btn-text">Download Video</span>
+                <span class="btn-text">Download Video (MP4)</span>
+                <span class="btn-spinner hidden"></span>
+              </button>
+
+              <!-- Prominent Download Audio Button -->
+              <button id="downloadAudioBtn" class="fetch-btn audio-btn" type="button" title="Download Audio Track (MP3)">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+                <span class="btn-text">Download Audio (MP3)</span>
                 <span class="btn-spinner hidden"></span>
               </button>
             </div>
@@ -340,14 +351,25 @@
               <span class="detail-label">Selected Format:</span>
               <span id="selectedSummaryText" class="detail-value">Best Available — MP4</span>
             </div>
-            <button id="cardDownloadBtn" class="download-btn" type="button">
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                <polyline points="7 10 12 15 17 10"></polyline>
-                <line x1="12" y1="15" x2="12" y2="3"></line>
-              </svg>
-              <span id="cardDownloadBtnText">Download Video</span>
-            </button>
+            <div class="action-buttons-group">
+              <button id="cardDownloadBtn" class="download-btn video-dl-btn" type="button">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span id="cardDownloadBtnText">Download Video (MP4)</span>
+              </button>
+
+              <button id="cardDownloadAudioBtn" class="download-btn audio-dl-btn" type="button">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3">
+                  <path d="M9 18V5l12-2v13"></path>
+                  <circle cx="6" cy="18" r="3"></circle>
+                  <circle cx="18" cy="16" r="3"></circle>
+                </svg>
+                <span>Download Audio (MP3)</span>
+              </button>
+            </div>
           </div>
         </div>
       </section>
@@ -371,6 +393,6 @@
   </div>
 
   <!-- Client Script with cache-busting -->
-  <script src="./app.js?v=12"></script>
+  <script src="./app.js?v=14"></script>
 </body>
 </html>

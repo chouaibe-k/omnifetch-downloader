@@ -22,6 +22,7 @@
   const urlInput = document.getElementById('urlInput');
   const pasteBtn = document.getElementById('pasteBtn');
   const downloadBtn = document.getElementById('downloadBtn');
+  const downloadAudioBtn = document.getElementById('downloadAudioBtn');
   const qualitySelect = document.getElementById('qualitySelect');
   const watermarkSelect = document.getElementById('watermarkSelect');
   const statusBanner = document.getElementById('statusBanner');
@@ -65,6 +66,7 @@
   const downloadButtonsContainer = document.getElementById('downloadButtonsContainer');
   const cardDownloadBtn = document.getElementById('cardDownloadBtn');
   const cardDownloadBtnText = document.getElementById('cardDownloadBtnText');
+  const cardDownloadAudioBtn = document.getElementById('cardDownloadAudioBtn');
 
   // Theme & History
   const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -255,25 +257,49 @@
     statusBanner.classList.add('hidden');
   }
 
-  // Main Action: Download Video
-  downloadBtn.addEventListener('click', processDownload);
+  // Main Action: Download Video (MP4)
+  downloadBtn.addEventListener('click', () => processDownload('video'));
+
+  // Main Action: Download Audio (MP3)
+  if (downloadAudioBtn) {
+    downloadAudioBtn.addEventListener('click', () => processDownload('audio'));
+  }
+
   urlInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') processDownload();
+    if (e.key === 'Enter') processDownload('video');
   });
 
   if (cardDownloadBtn) {
     cardDownloadBtn.addEventListener('click', () => {
       if (currentMedia) {
+        // Ensure video is selected
+        const defaultQ = (currentMedia.qualities && currentMedia.qualities[0]) || { format_id: 'best', label: 'Video MP4', ext: 'mp4' };
+        selectQuality(defaultQ);
         progressTracker.classList.remove('hidden');
         progressTracker.scrollIntoView({ behavior: 'smooth', block: 'center' });
         executeDownload();
       } else {
-        processDownload();
+        processDownload('video');
       }
     });
   }
 
-  async function processDownload() {
+  if (cardDownloadAudioBtn) {
+    cardDownloadAudioBtn.addEventListener('click', () => {
+      if (currentMedia) {
+        // Ensure audio is selected
+        const audioOpt = (currentMedia.audio_options && currentMedia.audio_options[0]) || { format_id: 'mp3', label: 'Audio MP3', ext: 'mp3', is_audio: true };
+        selectAudio(audioOpt);
+        progressTracker.classList.remove('hidden');
+        progressTracker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        executeDownload();
+      } else {
+        processDownload('audio');
+      }
+    });
+  }
+
+  async function processDownload(targetMode = 'video') {
     const url = urlInput.value.trim();
     if (!url) {
       showStatus('Please paste a valid video URL first (e.g. TikTok, YouTube, Facebook, Dailymotion).');
@@ -281,21 +307,28 @@
     }
 
     hideStatus();
-    downloadBtn.disabled = true;
-    downloadBtn.querySelector('.btn-text').textContent = 'Connecting...';
-    downloadBtn.querySelector('.btn-spinner').classList.remove('hidden');
+    if (targetMode === 'audio' && downloadAudioBtn) {
+      downloadAudioBtn.disabled = true;
+      downloadAudioBtn.querySelector('.btn-text').textContent = 'Extracting Audio...';
+      downloadAudioBtn.querySelector('.btn-spinner').classList.remove('hidden');
+    } else {
+      downloadBtn.disabled = true;
+      downloadBtn.querySelector('.btn-text').textContent = 'Connecting...';
+      downloadBtn.querySelector('.btn-spinner').classList.remove('hidden');
+    }
 
     // Show Progress Tracker Immediately
     progressTracker.classList.remove('hidden');
     downloadReadyCard.classList.add('hidden');
-    progressStatusText.textContent = 'Connecting to video source...';
+    progressStatusText.textContent = targetMode === 'audio' ? 'Connecting to audio stream...' : 'Connecting to video source...';
     progressPctText.textContent = '15%';
     progressBarFill.style.width = '15%';
     progressDownloaded.textContent = 'Analyzing...';
     progressSpeed.textContent = 'High Speed';
     progressEta.textContent = 'Calculating...';
 
-    const desiredQuality = qualitySelect.value;
+    let desiredQuality = targetMode === 'audio' ? 'mp3' : qualitySelect.value;
+    if (targetMode === 'video' && desiredQuality === 'mp3') desiredQuality = 'max';
     const desiredWm = watermarkSelect.value;
 
     try {
@@ -321,7 +354,7 @@
       if (!data) {
         progressBarFill.style.width = '45%';
         progressPctText.textContent = '45%';
-        progressStatusText.textContent = 'Extracting media streams & metadata...';
+        progressStatusText.textContent = targetMode === 'audio' ? 'Extracting audio streams & metadata...' : 'Extracting media streams & metadata...';
         data = await extractClientSide(url);
       }
 
@@ -330,7 +363,7 @@
 
       progressBarFill.style.width = '80%';
       progressPctText.textContent = '80%';
-      progressStatusText.textContent = 'Triggering direct download...';
+      progressStatusText.textContent = targetMode === 'audio' ? 'Triggering direct audio download...' : 'Triggering direct video download...';
 
       // Apply User's Pre-Selected Format
       applyUserPreferences(data, desiredQuality, desiredWm);
@@ -339,12 +372,17 @@
       await executeDownload();
 
     } catch (err) {
-      showStatus(err.message || 'Error processing video download');
+      showStatus(err.message || 'Error processing download');
       progressTracker.classList.add('hidden');
     } finally {
       downloadBtn.disabled = false;
-      downloadBtn.querySelector('.btn-text').textContent = 'Download Video';
+      downloadBtn.querySelector('.btn-text').textContent = 'Download Video (MP4)';
       downloadBtn.querySelector('.btn-spinner').classList.add('hidden');
+      if (downloadAudioBtn) {
+        downloadAudioBtn.disabled = false;
+        downloadAudioBtn.querySelector('.btn-text').textContent = 'Download Audio (MP3)';
+        downloadAudioBtn.querySelector('.btn-spinner').classList.add('hidden');
+      }
     }
   }
 
@@ -968,40 +1006,79 @@
     progressStatusText.textContent = 'Media Stream Ready';
     completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
 
+    const isAudio = !!selectedOption.is_audio;
+    const formatLabel = isAudio ? 'MP3 Audio' : `MP4 Video (${selectedOption.label})`;
+    const buttonApiUrl = isAudio 
+      ? `https://api.vevioz.com/api/button/mp3?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`
+      : `https://api.vevioz.com/api/button/mp4?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
+
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
         <div class="notice-header">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.3">
-            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-            <polyline points="22 4 12 14.01 9 11.01"></polyline>
-          </svg>
-          <strong>${escapeHtml(currentMedia.platform.toUpperCase())} Video Information</strong>
+          ${isAudio ? `
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8b5cf6" stroke-width="2.3">
+              <path d="M9 18V5l12-2v13"></path>
+              <circle cx="6" cy="18" r="3"></circle>
+              <circle cx="18" cy="16" r="3"></circle>
+            </svg>
+            <strong>${escapeHtml(currentMedia.platform.toUpperCase())} Audio Track Ready</strong>
+          ` : `
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.3">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            <strong>${escapeHtml(currentMedia.platform.toUpperCase())} Video Download Ready</strong>
+          `}
         </div>
         <p class="notice-text">
-          Selected: <strong>${escapeHtml(selectedOption.label)} (${escapeHtml(selectedOption.ext.toUpperCase())})</strong> • Creator: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
+          Target: <strong>${escapeHtml(formatLabel)}</strong> • Creator: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
         </p>
 
-        ${currentMedia.vid && currentMedia.platform === 'youtube' ? `
-          <div class="inapp-converter-box">
-            <div class="inapp-converter-title">
+        <div class="inapp-converter-box">
+          <div class="inapp-converter-title">
+            ${isAudio ? `
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8b5cf6" stroke-width="2.2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
+              <strong>Direct ${escapeHtml(formatLabel)} Downloader</strong>
+            ` : `
               <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              <strong>In-App Video & Audio Downloader</strong>
-            </div>
-            <p class="inapp-converter-subtitle">Click below to generate and save your ${selectedOption.is_audio ? 'MP3 Audio' : 'MP4 Video'} directly into your Downloads folder:</p>
-            <iframe id="inappDownloaderFrame" src="https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}" style="width:100%; height:260px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:#111827;" allow="clipboard-write" sandbox="allow-scripts allow-forms allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+              <strong>Direct ${escapeHtml(formatLabel)} Downloader</strong>
+            `}
           </div>
-        ` : ''}
+          <p class="inapp-converter-subtitle">Click the download button below to save your ${isAudio ? 'MP3 audio track' : 'MP4 video'} directly to your Downloads folder:</p>
+          <div class="inapp-button-frame-wrapper">
+            <iframe id="inappDownloaderFrame" class="inapp-button-frame" src="${buttonApiUrl}" allow="clipboard-write" scrolling="no"></iframe>
+          </div>
+        </div>
 
         <div class="stream-action-row">
+          ${isAudio ? `
+            <button type="button" class="direct-dl-btn primary" id="switchToVideoBtn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Switch to MP4 Video Download
+            </button>
+          ` : `
+            <button type="button" class="direct-dl-btn primary" id="switchToAudioBtn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
+                <path d="M9 18V5l12-2v13"></path>
+                <circle cx="6" cy="18" r="3"></circle>
+                <circle cx="18" cy="16" r="3"></circle>
+              </svg>
+              Switch to MP3 Audio Only
+            </button>
+          `}
           ${currentMedia.embed_url ? `
-            <button type="button" class="direct-dl-btn primary" id="launchPlayerBtn">
+            <button type="button" class="direct-dl-btn secondary" id="launchPlayerBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Watch Video Stream In-App
             </button>
           ` : ''}
           <button type="button" class="direct-dl-btn secondary" id="copyDetailsBtn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            Copy Video Info
+            Copy Info
           </button>
         </div>
       </div>
@@ -1012,6 +1089,18 @@
       if (event.data && event.data.type === 'vevioz-api-download' && typeof event.data.url === 'string') {
         triggerStreamDownload(event.data.url, filename);
       }
+    });
+
+    document.getElementById('switchToAudioBtn')?.addEventListener('click', () => {
+      const audioOpt = (currentMedia.audio_options && currentMedia.audio_options[0]) || { format_id: 'mp3', label: 'Audio MP3', ext: 'mp3', is_audio: true };
+      selectAudio(audioOpt);
+      executeDownload();
+    });
+
+    document.getElementById('switchToVideoBtn')?.addEventListener('click', () => {
+      const defaultQ = (currentMedia.qualities && currentMedia.qualities[0]) || { format_id: 'best', label: 'Video MP4', ext: 'mp4' };
+      selectQuality(defaultQ);
+      executeDownload();
     });
 
     document.getElementById('launchPlayerBtn')?.addEventListener('click', () => {
