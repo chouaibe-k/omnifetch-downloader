@@ -1,14 +1,14 @@
-const CACHE_NAME = 'omnifetch-v1';
+const CACHE_NAME = 'omnifetch-v2';
 const ASSETS_TO_CACHE = [
-  '/',
-  '/index.html',
-  '/styles.css',
-  '/app.js',
-  '/manifest.webmanifest',
-  '/icons/icon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/favicon.png'
+  './',
+  './index.html',
+  './styles.css',
+  './app.js',
+  './manifest.webmanifest',
+  './icons/icon.svg',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/favicon.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -77,7 +77,7 @@
   // Service Worker Registration for Android PWA
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
+      navigator.serviceWorker.register('./sw.js').catch((err) => {
         console.warn('SW registration failed:', err);
       });
     });
@@ -145,7 +145,7 @@
     }
     historyListContainer.innerHTML = history.map((item) => `
       <div class="history-item">
-        <img src="${item.thumbnail || '/icons/favicon.png'}" alt="Thumb" class="history-thumb" />
+        <img src="${item.thumbnail || './icons/favicon.png'}" alt="Thumb" class="history-thumb" />
         <div class="history-meta">
           <div class="history-title">${escapeHtml(item.title)}</div>
           <div class="history-sub">${item.platform.toUpperCase()} • ${item.label} • ${new Date(item.date).toLocaleDateString()}</div>
@@ -417,7 +417,7 @@
       uploader_name: 'Creator',
       uploader_url: url,
       uploader_avatar: '',
-      thumbnail: '/icons/icon.svg',
+      thumbnail: './icons/icon.svg',
       duration: 0,
       duration_str: 'Stream',
       has_watermark_options: false,
@@ -436,7 +436,7 @@
   // Render Media Information & Setup Option Panels
   function renderMediaData(data) {
     // 1. Overview
-    mediaThumbnail.src = data.thumbnail || '/icons/icon.svg';
+    mediaThumbnail.src = data.thumbnail || './icons/icon.svg';
     mediaDuration.textContent = data.duration_str || '0:00';
     platformBadge.textContent = (data.platform || 'video').toUpperCase();
 
