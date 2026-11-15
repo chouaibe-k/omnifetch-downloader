@@ -29,6 +29,8 @@
 
   // Media Overview Elements
   const mediaThumbnail = document.getElementById('mediaThumbnail');
+  const embedPlayerContainer = document.getElementById('embedPlayerContainer');
+  const thumbPlayBtn = document.getElementById('thumbPlayBtn');
   const mediaDuration = document.getElementById('mediaDuration');
   const platformBadge = document.getElementById('platformBadge');
   const creatorAvatar = document.getElementById('creatorAvatar');
@@ -440,6 +442,7 @@
         thumbnail: thumb,
         duration: 0,
         duration_str: 'Full Video',
+        embed_url: vid ? `https://www.youtube.com/embed/${vid}?autoplay=1` : null,
         has_watermark_options: false,
         is_mirror_required: true,
         qualities: [
@@ -456,7 +459,70 @@
       };
     }
 
-    // Facebook / Dailymotion / Instagram Generic Fallback
+    // Dailymotion Extraction via Public API
+    if (platform === 'dailymotion') {
+      const dmMatch = url.match(/(?:video\/|dai\.ly\/)([a-zA-Z0-9]+)/);
+      const dmId = dmMatch ? dmMatch[1] : '';
+      let title = 'Dailymotion Video';
+      let description = '';
+      let uploader = 'Dailymotion Creator';
+      let uploaderName = 'Creator';
+      let uploaderAvatar = '';
+      let uploaderUrl = url;
+      let thumbnail = './icons/icon.svg';
+      let duration = 0;
+      let durationStr = 'Stream';
+
+      if (dmId) {
+        try {
+          const apiResp = await fetch(`https://api.dailymotion.com/video/${dmId}?fields=id,title,description,duration,thumbnail_720_url,owner.screenname,owner.avatar_80_url,owner.url`);
+          if (apiResp.ok) {
+            const d = await apiResp.json();
+            title = d.title || title;
+            description = d.description || '';
+            uploader = d['owner.screenname'] || uploader;
+            uploaderName = d['owner.screenname'] || uploaderName;
+            uploaderAvatar = d['owner.avatar_80_url'] || '';
+            uploaderUrl = d['owner.url'] || uploaderUrl;
+            thumbnail = d.thumbnail_720_url || thumbnail;
+            duration = d.duration || 0;
+            if (duration) {
+              durationStr = `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Dailymotion metadata lookup error:', e);
+        }
+      }
+
+      return {
+        platform: 'dailymotion',
+        vid: dmId,
+        title: title,
+        description: description || `Uploaded by ${uploader} on Dailymotion.`,
+        uploader: uploader,
+        uploader_name: uploaderName,
+        uploader_url: uploaderUrl,
+        uploader_avatar: uploaderAvatar,
+        thumbnail: thumbnail,
+        duration: duration,
+        duration_str: durationStr,
+        embed_url: dmId ? `https://www.dailymotion.com/embed/video/${dmId}?autoplay=1` : null,
+        has_watermark_options: false,
+        qualities: [
+          { format_id: '1080p', label: '1080p (Full HD)', resolution: '1920x1080', ext: 'mp4', direct_url: null },
+          { format_id: '720p', label: '720p (HD)', resolution: '1280x720', ext: 'mp4', direct_url: null },
+          { format_id: '480p', label: '480p (SD)', resolution: '854x480', ext: 'mp4', direct_url: null }
+        ],
+        audio_options: [
+          { format_id: 'mp3', label: 'Audio Only (MP3)', ext: 'mp3', is_audio: true, direct_url: null }
+        ],
+        subtitles: [],
+        original_url: url
+      };
+    }
+
+    // Facebook / Instagram Generic Fallback
     return {
       platform: platform,
       title: `${platform.toUpperCase()} Video Stream`,
@@ -468,6 +534,7 @@
       thumbnail: './icons/icon.svg',
       duration: 0,
       duration_str: 'Stream',
+      embed_url: null,
       has_watermark_options: false,
       qualities: [
         { format_id: 'best', label: 'Best Available (Max Quality)', resolution: 'Original HD', ext: 'mp4', direct_url: null },
@@ -571,8 +638,29 @@
       subtitleControlGroup.classList.add('hidden');
     }
 
+    // Embedded Video Player Preview
+    if (embedPlayerContainer) {
+      embedPlayerContainer.innerHTML = '';
+      embedPlayerContainer.classList.add('hidden');
+    }
+    if (thumbPlayBtn) {
+      if (data.embed_url) {
+        thumbPlayBtn.classList.remove('hidden');
+        thumbPlayBtn.onclick = () => startEmbedPlayer(data.embed_url);
+      } else {
+        thumbPlayBtn.classList.add('hidden');
+      }
+    }
+
     resultSection.classList.remove('hidden');
     resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function startEmbedPlayer(url) {
+    if (!embedPlayerContainer || !url) return;
+    embedPlayerContainer.innerHTML = `<iframe src="${url}" class="preview-iframe" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
+    embedPlayerContainer.classList.remove('hidden');
+    if (thumbPlayBtn) thumbPlayBtn.classList.add('hidden');
   }
 
   function setupWatermarkControls(data) {
@@ -797,40 +885,71 @@
       }
     }
 
-    // C. Static Web App Guidance for YouTube / Platforms Requiring Engine
+    // C. Static Web App Details & Stream Preview for YouTube / Dailymotion
     progressBarFill.style.width = '100%';
     progressPctText.textContent = 'Ready';
-    progressStatusText.textContent = 'Video Metadata Extracted';
+    progressStatusText.textContent = 'Media Details & Stream Ready';
     completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
         <div class="notice-header">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3b82f6" stroke-width="2">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="16" x2="12" y2="12"></line>
-            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.3">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
-          <strong>Direct In-App Downloading</strong>
+          <strong>Video Information & Stream Preview</strong>
         </div>
         <p class="notice-text">
-          TikTok videos download <strong>100% directly</strong> in your browser into your Downloads folder.
+          Uploader: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong> • Platform: <strong>${escapeHtml(currentMedia.platform.toUpperCase())}</strong>
         </p>
-        <p class="notice-text">
-          For YouTube 1080p/4K downloads directly into your laptop's <strong>Downloads folder</strong> with <strong>zero external websites or ads</strong>, launch the 1-Click OmniFetch Desktop Engine or use the Android App:
-        </p>
-        <div class="launcher-buttons-row">
-          <a href="run_desktop.bat" download="run_desktop.bat" class="launcher-btn primary">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Windows Launcher (.bat)
-          </a>
-          <a href="run_desktop.sh" download="run_desktop.sh" class="launcher-btn secondary">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-            Download Mac/Linux Launcher (.sh)
-          </a>
+        <div class="stream-action-row">
+          ${currentMedia.embed_url ? `
+            <button type="button" class="direct-dl-btn primary" id="launchPlayerBtn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              Watch Video Stream
+            </button>
+          ` : ''}
+          <button type="button" class="direct-dl-btn secondary" id="copyDetailsBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copy Video Info
+          </button>
+        </div>
+        <div class="mobile-app-callout">
+          <div class="callout-icon">📱</div>
+          <div class="callout-content">
+            <div class="callout-title">Direct File Downloads on Mobile (Android App)</div>
+            <p class="callout-desc">
+              Your <strong>OmniFetch Android App</strong> is available in your Google Drive. It downloads videos from all platforms directly into your phone's <strong>Download</strong> folder without web browser limitations.
+            </p>
+            <a href="https://drive.google.com/file/d/1hUPF-z_yKGQMhpLYaA-R6e5PlwyIK9kL/view?usp=drivesdk" target="_blank" rel="noopener noreferrer" class="drive-apk-link">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
+              Open Android APK in Google Drive
+            </a>
+          </div>
         </div>
       </div>
     `;
+
+    document.getElementById('launchPlayerBtn')?.addEventListener('click', () => {
+      startEmbedPlayer(currentMedia.embed_url);
+      resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+
+    document.getElementById('copyDetailsBtn')?.addEventListener('click', async () => {
+      const text = `Title: ${currentMedia.title}\nPlatform: ${currentMedia.platform.toUpperCase()}\nUploader: ${currentMedia.uploader}\nURL: ${currentMedia.original_url || ''}\n\nDescription:\n${currentMedia.description}`;
+      try {
+        await navigator.clipboard.writeText(text);
+        const btn = document.getElementById('copyDetailsBtn');
+        if (btn) btn.innerHTML = `<span>Copied to Clipboard!</span>`;
+        setTimeout(() => {
+          if (btn) btn.innerHTML = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg> Copy Video Info`;
+        }, 2000);
+      } catch {
+        alert('Could not copy to clipboard.');
+      }
+    });
+
     downloadReadyCard.classList.remove('hidden');
   }
 

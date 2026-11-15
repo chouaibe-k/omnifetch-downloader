@@ -1,7 +1,7 @@
 @echo off
 title OmniFetch Video Downloader
 echo ========================================================
-echo        OmniFetch Video & Audio Downloader Engine
+echo        OmniFetch Video and Audio Downloader Engine
 echo ========================================================
 echo.
 echo Starting OmniFetch local engine on your laptop...
@@ -9,7 +9,11 @@ echo.
 
 python --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo Python was not found! Please install Python from https://www.python.org/
+    echo [NOTE] Python is not installed on this computer.
+    echo This launcher is an optional engine for advanced developers.
+    echo Everyday users can use the OmniFetch Web App or the OmniFetch Android App.
+    echo If you want to run this local engine, install Python from: https://www.python.org/
+    echo.
     pause
     exit /b
 )

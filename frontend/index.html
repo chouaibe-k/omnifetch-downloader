@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=6">
+  <link rel="stylesheet" href="./styles.css?v=7">
 </head>
 <body class="theme-dark">
   <div id="app" class="app-container">
@@ -213,8 +213,12 @@
         <div class="result-card">
           <!-- Media Overview -->
           <div class="media-overview">
-            <div class="media-thumb-container">
+            <div class="media-thumb-container" id="mediaThumbWrapper">
               <img id="mediaThumbnail" src="./icons/icon.svg" alt="Thumbnail" class="media-thumbnail" />
+              <div id="embedPlayerContainer" class="embed-player-frame hidden"></div>
+              <button id="thumbPlayBtn" class="thumb-play-overlay hidden" type="button" title="Play Video Preview">
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="white"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+              </button>
               <span id="mediaDuration" class="duration-badge">0:00</span>
               <span id="platformBadge" class="platform-badge">VIDEO</span>
             </div>
@@ -351,6 +355,6 @@
   </div>
 
   <!-- Client Script with cache-busting -->
-  <script src="./app.js?v=6"></script>
+  <script src="./app.js?v=7"></script>
 </body>
 </html>
