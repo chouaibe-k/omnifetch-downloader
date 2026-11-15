@@ -1,9 +1,9 @@
-const CACHE_NAME = 'omnifetch-v2';
+const CACHE_NAME = 'omnifetch-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './styles.css',
-  './app.js',
+  './styles.css?v=4',
+  './app.js?v=4',
   './manifest.webmanifest',
   './icons/icon.svg',
   './icons/icon-192.png',
@@ -34,13 +34,20 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Pass API calls directly to network
-  if (event.request.url.includes('/api/')) {
+  // Pass API calls and external links directly to network
+  if (event.request.url.includes('/api/') || !event.request.url.startsWith(self.location.origin)) {
     return;
   }
+  // Network-first strategy for app updates
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      return cachedResponse || fetch(event.request);
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseClone = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

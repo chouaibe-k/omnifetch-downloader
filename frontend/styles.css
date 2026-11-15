@@ -272,13 +272,44 @@ body {
 }
 
 /* Search Card */
-.search-card {
-  background-color: var(--bg-surface);
+/* Quick Options Bar */
+.quick-options-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.opt-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.opt-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.compact-select {
+  background: var(--bg-surface-elevated);
   border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  padding: 20px;
-  box-shadow: var(--shadow-md);
-  text-align: left;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  cursor: pointer;
+  transition: border-color var(--transition-fast);
+}
+
+.compact-select:focus {
+  border-color: var(--border-focus);
 }
 
 .search-input-wrapper {

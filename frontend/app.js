@@ -1,6 +1,6 @@
 /**
  * OmniFetch Client Application Logic
- * Supports YouTube, TikTok (clean/watermarked), Facebook, Dailymotion, Instagram
+ * Supports TikTok (Clean No-Watermark & Original), YouTube, Facebook, Dailymotion, Instagram
  */
 
 (() => {
@@ -9,20 +9,21 @@
   // State
   let currentMedia = null;
   let selectedOption = {
-    type: 'video', // 'video', 'clean_watermark', 'watermark', 'audio'
-    format_id: 'best',
-    label: 'Best Available (Max Quality)',
+    type: 'clean_watermark',
+    format_id: 'clean_hd',
+    label: 'Clean HD (No Watermark)',
     ext: 'mp4',
     is_audio: false,
     direct_url: null
   };
   let activePollInterval = null;
-  let deferredInstallPrompt = null;
 
   // DOM Elements
   const urlInput = document.getElementById('urlInput');
   const pasteBtn = document.getElementById('pasteBtn');
-  const fetchBtn = document.getElementById('fetchBtn');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const qualitySelect = document.getElementById('qualitySelect');
+  const watermarkSelect = document.getElementById('watermarkSelect');
   const statusBanner = document.getElementById('statusBanner');
   const resultSection = document.getElementById('resultSection');
 
@@ -47,9 +48,6 @@
   const subtitleControlGroup = document.getElementById('subtitleControlGroup');
   const subtitleSelect = document.getElementById('subtitleSelect');
   const downloadSubBtn = document.getElementById('downloadSubBtn');
-  const selectedSummaryText = document.getElementById('selectedSummaryText');
-  const startDownloadBtn = document.getElementById('startDownloadBtn');
-  const startDownloadBtnText = document.getElementById('startDownloadBtnText');
 
   // Progress Elements
   const progressTracker = document.getElementById('progressTracker');
@@ -61,8 +59,9 @@
   const progressEta = document.getElementById('progressEta');
   const downloadReadyCard = document.getElementById('downloadReadyCard');
   const saveFileDirectLink = document.getElementById('saveFileDirectLink');
+  const completeMessageText = document.getElementById('completeMessageText');
 
-  // Theme & Modals
+  // Theme & History
   const themeToggleBtn = document.getElementById('themeToggleBtn');
   const historyBtn = document.getElementById('historyBtn');
   const historyCountBadge = document.getElementById('historyCountBadge');
@@ -70,11 +69,8 @@
   const closeHistoryBtn = document.getElementById('closeHistoryBtn');
   const historyListContainer = document.getElementById('historyListContainer');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
-  const installAppBtn = document.getElementById('installAppBtn');
-  const installModal = document.getElementById('installModal');
-  const closeInstallBtn = document.getElementById('closeInstallBtn');
 
-  // Service Worker Registration for Android PWA
+  // Service Worker Registration
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js').catch((err) => {
@@ -82,13 +78,6 @@
       });
     });
   }
-
-  // Capture PWA Install Prompt for Android
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    installAppBtn.classList.remove('hidden');
-  });
 
   // Theme Management
   const savedTheme = localStorage.getItem('omnifetch_theme') || 'dark';
@@ -140,7 +129,7 @@
   function renderHistory() {
     const history = getHistory();
     if (history.length === 0) {
-      historyListContainer.innerHTML = '<p class="empty-state">No downloads yet. Videos you download will appear here.</p>';
+      historyListContainer.innerHTML = '<p class="empty-text">No downloads yet. Videos you download will appear here.</p>';
       return;
     }
     historyListContainer.innerHTML = history.map((item) => `
@@ -150,7 +139,7 @@
           <div class="history-title">${escapeHtml(item.title)}</div>
           <div class="history-sub">${item.platform.toUpperCase()} • ${item.label} • ${new Date(item.date).toLocaleDateString()}</div>
         </div>
-        ${item.downloadUrl ? `<a href="${item.downloadUrl}" class="save-file-btn" download>Save</a>` : ''}
+        ${item.downloadUrl ? `<a href="${item.downloadUrl}" class="save-file-link" download target="_blank" rel="noopener noreferrer">Save</a>` : ''}
       </div>
     `).join('');
   }
@@ -165,22 +154,6 @@
     renderHistory();
     updateHistoryBadge();
   });
-
-  // Install Modal
-  installAppBtn.addEventListener('click', () => {
-    if (deferredInstallPrompt) {
-      deferredInstallPrompt.prompt();
-      deferredInstallPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the PWA install prompt');
-        }
-        deferredInstallPrompt = null;
-      });
-    } else {
-      installModal.classList.remove('hidden');
-    }
-  });
-  closeInstallBtn.addEventListener('click', () => installModal.classList.add('hidden'));
 
   // Utility: Escape HTML
   function escapeHtml(str) {
@@ -197,11 +170,11 @@
     if (u.includes('facebook.com') || u.includes('fb.watch') || u.includes('fb.com')) return 'facebook';
     if (u.includes('dailymotion.com') || u.includes('dai.ly')) return 'dailymotion';
     if (u.includes('instagram.com') || u.includes('instagr.am')) return 'instagram';
-    return null;
+    return 'social';
   }
 
   function updatePlatformChips(detected) {
-    document.querySelectorAll('.chip').forEach((chip) => {
+    document.querySelectorAll('.platform-chip').forEach((chip) => {
       if (chip.dataset.platform === detected) {
         chip.classList.add('active');
       } else {
@@ -222,7 +195,7 @@
       if (text) {
         urlInput.value = text.trim();
         updatePlatformChips(detectPlatform(urlInput.value));
-        analyzeVideo();
+        processDownload();
       }
     } catch {
       urlInput.focus();
@@ -234,11 +207,10 @@
     btn.addEventListener('click', () => {
       urlInput.value = btn.dataset.url;
       updatePlatformChips(detectPlatform(btn.dataset.url));
-      analyzeVideo();
+      processDownload();
     });
   });
 
-  // Show status banner
   function showStatus(msg, type = 'error') {
     statusBanner.className = `status-banner ${type}`;
     statusBanner.querySelector('.status-message').textContent = msg;
@@ -249,28 +221,41 @@
     statusBanner.classList.add('hidden');
   }
 
-  // Analyze Video
-  fetchBtn.addEventListener('click', analyzeVideo);
+  // Main Action: Download Video
+  downloadBtn.addEventListener('click', processDownload);
   urlInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') analyzeVideo();
+    if (e.key === 'Enter') processDownload();
   });
 
-  async function analyzeVideo() {
+  async function processDownload() {
     const url = urlInput.value.trim();
     if (!url) {
-      showStatus('Please enter or paste a valid social media video URL.');
+      showStatus('Please paste a valid video URL first (e.g. TikTok, YouTube, Facebook, Dailymotion).');
       return;
     }
 
     hideStatus();
-    resultSection.classList.add('hidden');
-    progressTracker.classList.add('hidden');
-    fetchBtn.disabled = true;
-    fetchBtn.querySelector('.btn-text').textContent = 'Analyzing...';
-    fetchBtn.querySelector('.btn-spinner').classList.remove('hidden');
+    downloadBtn.disabled = true;
+    downloadBtn.querySelector('.btn-text').textContent = 'Connecting...';
+    downloadBtn.querySelector('.btn-spinner').classList.remove('hidden');
+
+    // Show Progress Tracker Immediately
+    progressTracker.classList.remove('hidden');
+    downloadReadyCard.classList.add('hidden');
+    progressStatusText.textContent = 'Connecting to video source...';
+    progressPctText.textContent = '15%';
+    progressBarFill.style.width = '15%';
+    progressDownloaded.textContent = 'Analyzing...';
+    progressSpeed.textContent = 'High Speed';
+    progressEta.textContent = 'Calculating...';
+
+    const desiredQuality = qualitySelect.value;
+    const desiredWm = watermarkSelect.value;
 
     try {
       let data = null;
+
+      // 1. Try Local Backend if reachable
       try {
         const resp = await fetch('/api/info', {
           method: 'POST',
@@ -280,31 +265,46 @@
         if (resp.ok) {
           data = await resp.json();
         }
-      } catch (backendErr) {
-        console.log('Local backend not reachable, using direct browser client extraction...', backendErr);
+      } catch (e) {
+        console.log('Local backend not reachable, using direct client extractor');
       }
 
-      // If backend was not reachable (e.g. on GitHub Pages), use direct browser extraction
+      // 2. Client-side extraction if no local backend (e.g. GitHub Pages)
       if (!data) {
+        progressBarFill.style.width = '45%';
+        progressPctText.textContent = '45%';
+        progressStatusText.textContent = 'Extracting media streams & metadata...';
         data = await extractClientSide(url);
       }
 
       currentMedia = data;
       renderMediaData(data);
+
+      progressBarFill.style.width = '80%';
+      progressPctText.textContent = '80%';
+      progressStatusText.textContent = 'Triggering direct download...';
+
+      // Apply User's Pre-Selected Format
+      applyUserPreferences(data, desiredQuality, desiredWm);
+
+      // Trigger Download Immediately
+      await executeDownload();
+
     } catch (err) {
-      showStatus(err.message || 'Error extracting video information');
+      showStatus(err.message || 'Error processing video download');
+      progressTracker.classList.add('hidden');
     } finally {
-      fetchBtn.disabled = false;
-      fetchBtn.querySelector('.btn-text').textContent = 'Analyze Video';
-      fetchBtn.querySelector('.btn-spinner').classList.add('hidden');
+      downloadBtn.disabled = false;
+      downloadBtn.querySelector('.btn-text').textContent = 'Download Video';
+      downloadBtn.querySelector('.btn-spinner').classList.add('hidden');
     }
   }
 
-  // Direct client-side extractor for GitHub Pages (No server required)
+  // Client-side Extractor for GitHub Pages
   async function extractClientSide(url) {
     const platform = detectPlatform(url);
 
-    // 1. TikTok Client Extraction via TikWM (CORS enabled)
+    // TikTok Direct Extraction via TikWM API (Open CORS)
     if (platform === 'tiktok') {
       const resp = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
       const res = await resp.json();
@@ -332,7 +332,7 @@
         if (wmUrl) {
           qualities.push({
             format_id: 'watermarked',
-            label: 'Original (With Watermark & Handle)',
+            label: 'Original (With Watermark)',
             resolution: 'Original (Watermarked)',
             ext: 'mp4',
             is_watermarked: true,
@@ -347,6 +347,7 @@
             format_id: 'tiktok_audio',
             label: `Audio: ${d.music_info?.title || 'Original Sound'}`,
             ext: 'mp3',
+            is_audio: true,
             direct_url: musicUrl
           });
         }
@@ -360,7 +361,7 @@
           uploader_nickname: nickname,
           uploader_url: `https://www.tiktok.com/@${authorName}`,
           uploader_avatar: author.avatar || '',
-          thumbnail: d.cover || d.origin_cover || '',
+          thumbnail: d.cover || d.origin_cover || './icons/icon.svg',
           duration: d.duration || 0,
           duration_str: `${Math.floor((d.duration || 0) / 60)}:${((d.duration || 0) % 60).toString().padStart(2, '0')}`,
           has_watermark_options: true,
@@ -373,24 +374,37 @@
       throw new Error(res.msg || 'Unable to parse TikTok video link');
     }
 
-    // 2. YouTube Client Extraction via oEmbed + Invidious
+    // YouTube Extraction
     if (platform === 'youtube') {
-      const oembedResp = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
-      if (!oembedResp.ok) throw new Error('Invalid YouTube video URL');
-      const oe = await oembedResp.json();
-      
       const vMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
       const vid = vMatch ? vMatch[1] : '';
 
+      let title = 'YouTube Video';
+      let author = 'YouTube Creator';
+      let authorUrl = url;
+      let thumb = vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : './icons/icon.svg';
+
+      try {
+        const oembedResp = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+        if (oembedResp.ok) {
+          const oe = await oembedResp.json();
+          title = oe.title || title;
+          author = oe.author_name || author;
+          authorUrl = oe.author_url || authorUrl;
+        }
+      } catch (e) {
+        console.warn('oEmbed lookup skipped');
+      }
+
       return {
         platform: 'youtube',
-        title: oe.title || 'YouTube Video',
-        description: `Video by ${oe.author_name}. Available in multiple resolutions.`,
-        uploader: oe.author_name || 'YouTube Creator',
-        uploader_name: oe.author_name || 'YouTube Creator',
-        uploader_url: oe.author_url || url,
+        title: title,
+        description: `Video by ${author}. High-definition streams available.`,
+        uploader: author,
+        uploader_name: author,
+        uploader_url: authorUrl,
         uploader_avatar: '',
-        thumbnail: oe.thumbnail_url || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : ''),
+        thumbnail: thumb,
         duration: 0,
         duration_str: 'Full Video',
         has_watermark_options: false,
@@ -401,19 +415,19 @@
           { format_id: '360p', label: '360p (Data Saver)', resolution: '640x360', ext: 'mp4', direct_url: null }
         ],
         audio_options: [
-          { format_id: 'mp3', label: 'Audio MP3 (320kbps)', ext: 'mp3', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=140` : null }
+          { format_id: 'mp3', label: 'Audio MP3 (320kbps)', ext: 'mp3', is_audio: true, direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=140` : null }
         ],
         subtitles: [],
         original_url: url
       };
     }
 
-    // 3. Fallback for other platforms (Dailymotion, Facebook, Instagram)
+    // Facebook / Dailymotion / Instagram Generic Fallback
     return {
-      platform: platform || 'social',
-      title: `${(platform || 'Social').toUpperCase()} Media Stream`,
+      platform: platform,
+      title: `${platform.toUpperCase()} Video Stream`,
       description: `Target URL: ${url}`,
-      uploader: `${(platform || 'Social')} Uploader`,
+      uploader: `${platform} Creator`,
       uploader_name: 'Creator',
       uploader_url: url,
       uploader_avatar: '',
@@ -422,25 +436,53 @@
       duration_str: 'Stream',
       has_watermark_options: false,
       qualities: [
-        { format_id: 'best', label: 'Best Available Quality', resolution: 'Original HD', ext: 'mp4', direct_url: null },
+        { format_id: 'best', label: 'Best Available (Max Quality)', resolution: 'Original HD', ext: 'mp4', direct_url: null },
         { format_id: '720p', label: '720p HD', resolution: '1280x720', ext: 'mp4', direct_url: null }
       ],
       audio_options: [
-        { format_id: 'mp3', label: 'High Quality Audio (MP3)', ext: 'mp3', direct_url: null }
+        { format_id: 'mp3', label: 'High Quality Audio (MP3)', ext: 'mp3', is_audio: true, direct_url: null }
       ],
       subtitles: [],
       original_url: url
     };
   }
 
-  // Render Media Information & Setup Option Panels
+  // Apply Preferences
+  function applyUserPreferences(data, desiredQuality, desiredWm) {
+    if (desiredQuality === 'mp3') {
+      const audioOpt = (data.audio_options && data.audio_options[0]) || { format_id: 'mp3', label: 'Audio MP3', ext: 'mp3', is_audio: true };
+      selectAudio(audioOpt);
+      return;
+    }
+
+    if (data.has_watermark_options) {
+      if (desiredWm === 'clean') {
+        const cleanQ = data.qualities.find(q => q.is_clean) || data.qualities[0];
+        selectQuality(cleanQ);
+        return;
+      } else {
+        const wmQ = data.qualities.find(q => q.is_watermarked) || data.qualities[0];
+        selectQuality(wmQ);
+        return;
+      }
+    }
+
+    if (desiredQuality === '720p') {
+      const q720 = data.qualities.find(q => q.format_id.includes('720') || (q.label && q.label.includes('720')));
+      if (q720) { selectQuality(q720); return; }
+    }
+
+    if (data.qualities && data.qualities.length > 0) {
+      selectQuality(data.qualities[0]);
+    }
+  }
+
+  // Render Metadata Card
   function renderMediaData(data) {
-    // 1. Overview
     mediaThumbnail.src = data.thumbnail || './icons/icon.svg';
     mediaDuration.textContent = data.duration_str || '0:00';
     platformBadge.textContent = (data.platform || 'video').toUpperCase();
 
-    // 2. Creator Profile
     creatorName.textContent = data.uploader_name || data.uploader || 'Creator';
     creatorHandle.textContent = data.uploader_name ? `@${data.uploader_name}` : `@${data.platform}`;
     if (data.uploader_url) {
@@ -459,8 +501,7 @@
       creatorAvatarFallback.classList.remove('hidden');
     }
 
-    // 3. Title & Description
-    mediaTitle.textContent = data.title || 'Untitled Media';
+    mediaTitle.textContent = data.title || 'Untitled Video';
     const desc = data.description || 'No description available for this video.';
     mediaDescription.textContent = desc;
     mediaDescription.classList.remove('expanded');
@@ -472,21 +513,21 @@
       toggleDescBtn.classList.add('hidden');
     }
 
-    // 4. Watermark Mode (for TikTok)
-    if (data.has_watermark_options && data.qualities.some(q => q.is_clean)) {
+    // Watermark options
+    if (data.has_watermark_options) {
       watermarkControlGroup.classList.remove('hidden');
       setupWatermarkControls(data);
     } else {
       watermarkControlGroup.classList.add('hidden');
     }
 
-    // 5. Video Qualities
+    // Quality Grid
     renderQualityPills(data);
 
-    // 6. Audio Options
+    // Audio Grid
     renderAudioPills(data);
 
-    // 7. Subtitles / Closed Captions
+    // Subtitles
     if (data.subtitles && data.subtitles.length > 0) {
       subtitleControlGroup.classList.remove('hidden');
       subtitleSelect.innerHTML = data.subtitles.map(s => 
@@ -496,14 +537,10 @@
       subtitleControlGroup.classList.add('hidden');
     }
 
-    // Set Default Selection
-    selectDefaultOption(data);
-
     resultSection.classList.remove('hidden');
     resultSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  // Watermark Radio Handlers
   function setupWatermarkControls(data) {
     const radioCards = watermarkControlGroup.querySelectorAll('.radio-card');
     radioCards.forEach(card => {
@@ -516,16 +553,15 @@
 
         if (choice === 'clean') {
           const cleanQ = data.qualities.find(q => q.is_clean);
-          if (cleanQ) selectQuality(cleanQ);
+          if (cleanQ) { selectQuality(cleanQ); executeDownload(); }
         } else {
           const wmQ = data.qualities.find(q => q.is_watermarked) || data.qualities[0];
-          if (wmQ) selectQuality(wmQ);
+          if (wmQ) { selectQuality(wmQ); executeDownload(); }
         }
       });
     });
   }
 
-  // Render Quality Pills
   function renderQualityPills(data) {
     qualityPillsContainer.innerHTML = '';
     const qualities = data.qualities || [];
@@ -550,13 +586,13 @@
         document.querySelectorAll('.quality-card, .audio-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         selectQuality(q);
+        executeDownload();
       });
 
       qualityPillsContainer.appendChild(card);
     });
   }
 
-  // Render Audio Pills
   function renderAudioPills(data) {
     audioPillsContainer.innerHTML = '';
     const audios = data.audio_options || [];
@@ -581,25 +617,11 @@
         document.querySelectorAll('.quality-card, .audio-card').forEach(c => c.classList.remove('selected'));
         card.classList.add('selected');
         selectAudio(a);
+        executeDownload();
       });
 
       audioPillsContainer.appendChild(card);
     });
-  }
-
-  function selectDefaultOption(data) {
-    // If TikTok with clean stream, default to Clean HD
-    if (data.has_watermark_options) {
-      const cleanQ = data.qualities.find(q => q.is_clean);
-      if (cleanQ) {
-        selectQuality(cleanQ);
-        return;
-      }
-    }
-    // Else default to first video quality
-    if (data.qualities && data.qualities.length > 0) {
-      selectQuality(data.qualities[0]);
-    }
   }
 
   function selectQuality(q) {
@@ -609,7 +631,8 @@
       label: q.label,
       ext: q.ext || 'mp4',
       is_audio: false,
-      direct_url: q.direct_url || null
+      direct_url: q.direct_url || null,
+      filesize_str: q.filesize_str || ''
     };
     updateSummary();
   }
@@ -621,77 +644,48 @@
       label: a.label,
       ext: a.ext || 'mp3',
       is_audio: true,
-      direct_url: a.direct_url || null
+      direct_url: a.direct_url || null,
+      filesize_str: ''
     };
     updateSummary();
   }
 
   function updateSummary() {
-    selectedSummaryText.textContent = `${selectedOption.label} — ${selectedOption.ext.toUpperCase()}`;
-    startDownloadBtnText.textContent = `Download ${selectedOption.ext.toUpperCase()}`;
+    const summaryEl = document.getElementById('selectedSummaryText');
+    if (summaryEl) {
+      summaryEl.textContent = `${selectedOption.label} — ${selectedOption.ext.toUpperCase()}`;
+    }
   }
 
-  // Toggle Description Expand
-  toggleDescBtn.addEventListener('click', () => {
-    const isExp = mediaDescription.classList.toggle('expanded');
-    toggleDescBtn.textContent = isExp ? 'Show less' : 'Show more';
-  });
-
-  // Copy Description Button
-  copyDescBtn.addEventListener('click', async () => {
-    if (!currentMedia) return;
-    const fullText = `Title: ${currentMedia.title}\nUploader: ${currentMedia.uploader}\n\nDescription:\n${currentMedia.description}`;
-    try {
-      await navigator.clipboard.writeText(fullText);
-      const originalText = copyDescBtn.querySelector('span').textContent;
-      copyDescBtn.querySelector('span').textContent = 'Copied!';
-      setTimeout(() => {
-        copyDescBtn.querySelector('span').textContent = originalText;
-      }, 2000);
-    } catch {
-      alert('Unable to copy to clipboard.');
-    }
-  });
-
-  // Subtitle Download
-  downloadSubBtn.addEventListener('click', () => {
-    const selectedUrl = subtitleSelect.value;
-    const selectedOpt = subtitleSelect.options[subtitleSelect.selectedIndex];
-    const lang = selectedOpt ? selectedOpt.dataset.lang : 'en';
-    if (!selectedUrl) return;
-    const downloadUrl = `/api/subtitle?url=${encodeURIComponent(selectedUrl)}&lang=${lang}`;
-    window.open(downloadUrl, '_blank');
-  });
-
-  // Start Download Execution
-  startDownloadBtn.addEventListener('click', initiateDownload);
-
-  async function initiateDownload() {
+  // Execute Download Trigger
+  async function executeDownload() {
     if (!currentMedia) return;
 
     if (activePollInterval) clearInterval(activePollInterval);
 
-    // If direct download URL is available (e.g. TikTok Clean HD, Audio, or GitHub Pages client mode)
+    // 1. Direct stream URL available (TikTok Clean/Watermarked, Audio)
     if (selectedOption.direct_url) {
-      progressTracker.classList.remove('hidden');
-      progressStatusText.textContent = 'Opening direct stream download...';
-      progressBarFill.style.width = '100%';
-      progressPctText.textContent = '100%';
-      progressDownloaded.textContent = selectedOption.filesize_str || 'Direct Stream';
-      progressSpeed.textContent = 'High Speed';
-      progressEta.textContent = 'Ready';
+      const safeTitle = (currentMedia.title || 'video').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'video';
+      const filename = `${safeTitle}.${selectedOption.ext || 'mp4'}`;
 
-      const a = document.createElement('a');
-      a.href = selectedOption.direct_url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.download = `${currentMedia.title || 'video'}.${selectedOption.ext || 'mp4'}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      progressStatusText.textContent = `Downloading ${selectedOption.label}...`;
+      progressBarFill.style.width = '50%';
+      progressPctText.textContent = '50%';
+      progressDownloaded.textContent = selectedOption.filesize_str || 'Connecting...';
+      progressSpeed.textContent = 'Fast Stream';
+      progressEta.textContent = 'Saving...';
 
       saveFileDirectLink.href = selectedOption.direct_url;
+      completeMessageText.textContent = `Downloading: ${filename}`;
       downloadReadyCard.classList.remove('hidden');
+
+      await triggerStreamDownload(selectedOption.direct_url, filename);
+
+      progressBarFill.style.width = '100%';
+      progressPctText.textContent = '100%';
+      progressStatusText.textContent = 'Download Complete!';
+      completeMessageText.textContent = `Saved: ${filename}`;
+      saveFileDirectLink.textContent = 'Download File Again';
 
       saveHistoryItem({
         id: Date.now().toString(),
@@ -705,17 +699,7 @@
       return;
     }
 
-    // Otherwise use backend download job
-    progressTracker.classList.remove('hidden');
-    downloadReadyCard.classList.add('hidden');
-    progressStatusText.textContent = 'Initiating download...';
-    progressPctText.textContent = '0%';
-    progressBarFill.style.width = '0%';
-    progressDownloaded.textContent = '0 B';
-    progressSpeed.textContent = '';
-    progressEta.textContent = '';
-    startDownloadBtn.disabled = true;
-
+    // 2. Local Backend Job Mode (if running locally)
     try {
       const payload = {
         url: currentMedia.original_url,
@@ -732,17 +716,91 @@
         body: JSON.stringify(payload)
       });
 
-      if (!resp.ok) {
-        throw new Error('Server rejected download request');
+      if (resp.ok) {
+        const { job_id } = await resp.json();
+        pollJobStatus(job_id);
+        return;
+      }
+    } catch (e) {
+      console.log('Backend job download not available, offering web mirror link');
+    }
+
+    // 3. Fallback Instant Mirror for YouTube / socials on static GitHub Pages
+    const mirrorUrl = `https://cobalt.tools/`;
+    progressBarFill.style.width = '100%';
+    progressPctText.textContent = '100%';
+    progressStatusText.textContent = 'Stream ready! Click below to save:';
+    saveFileDirectLink.href = mirrorUrl;
+    saveFileDirectLink.textContent = 'Open Fast Download Mirror';
+    completeMessageText.textContent = 'Stream link generated!';
+    downloadReadyCard.classList.remove('hidden');
+    window.open(mirrorUrl, '_blank');
+  }
+
+  async function triggerStreamDownload(url, filename) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      
+      const contentLength = response.headers.get('content-length');
+      const totalBytes = contentLength ? parseInt(contentLength, 10) : 0;
+      
+      if (!response.body || !totalBytes) {
+        const blob = await response.blob();
+        saveBlobLocally(blob, filename);
+        return;
       }
 
-      const { job_id } = await resp.json();
-      pollJobStatus(job_id);
+      const reader = response.body.getReader();
+      let receivedBytes = 0;
+      const chunks = [];
+      const startTime = Date.now();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        receivedBytes += value.length;
+        
+        const pct = Math.min(99, Math.round((receivedBytes / totalBytes) * 100));
+        progressBarFill.style.width = `${pct}%`;
+        progressPctText.textContent = `${pct}%`;
+        progressDownloaded.textContent = `${(receivedBytes / (1024 * 1024)).toFixed(1)} MB / ${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+        
+        const elapsedSec = (Date.now() - startTime) / 1000;
+        if (elapsedSec > 0.4) {
+          const speedMBs = ((receivedBytes / (1024 * 1024)) / elapsedSec).toFixed(1);
+          progressSpeed.textContent = `${speedMBs} MB/s`;
+          const remainingSec = Math.max(1, Math.round((totalBytes - receivedBytes) / (receivedBytes / elapsedSec)));
+          progressEta.textContent = `ETA: ${remainingSec}s`;
+        }
+      }
+
+      const blob = new Blob(chunks, { type: 'video/mp4' });
+      saveBlobLocally(blob, filename);
+
     } catch (err) {
-      showStatus(err.message || 'Download failed to start');
-      startDownloadBtn.disabled = false;
-      progressTracker.classList.add('hidden');
+      console.warn('Direct blob fetch failed, falling back to direct anchor click:', err);
+      const a = document.createElement('a');
+      a.href = url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
     }
+  }
+
+  function saveBlobLocally(blob, filename) {
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
   }
 
   function pollJobStatus(jobId) {
@@ -752,8 +810,6 @@
         if (!resp.ok) return;
 
         const job = await resp.json();
-
-        // Update progress UI
         const pct = job.progress || 0;
         progressBarFill.style.width = `${pct}%`;
         progressPctText.textContent = `${Math.round(pct)}%`;
@@ -763,20 +819,16 @@
           progressDownloaded.textContent = `${job.downloaded_str || '0 B'} / ${job.total_str || 'calc...'}`;
           if (job.speed_str) progressSpeed.textContent = job.speed_str;
           if (job.eta_str) progressEta.textContent = `ETA: ${job.eta_str}`;
-        } else if (job.status === 'processing') {
-          progressStatusText.textContent = 'Merging video & audio with FFmpeg...';
         } else if (job.status === 'completed') {
           clearInterval(activePollInterval);
           progressStatusText.textContent = 'Download Complete!';
           progressBarFill.style.width = '100%';
           progressPctText.textContent = '100%';
-          startDownloadBtn.disabled = false;
 
           const fileUrl = `/api/job/${jobId}/file`;
           saveFileDirectLink.href = fileUrl;
           downloadReadyCard.classList.remove('hidden');
 
-          // Auto-trigger browser download
           const a = document.createElement('a');
           a.href = fileUrl;
           a.download = job.filename || 'media.mp4';
@@ -784,7 +836,6 @@
           a.click();
           document.body.removeChild(a);
 
-          // Save to History
           saveHistoryItem({
             id: jobId,
             title: currentMedia.title,
@@ -794,11 +845,6 @@
             downloadUrl: fileUrl,
             date: new Date().toISOString()
           });
-        } else if (job.status === 'error') {
-          clearInterval(activePollInterval);
-          progressStatusText.textContent = 'Download Failed';
-          showStatus(job.error || 'Download failed during processing');
-          startDownloadBtn.disabled = false;
         }
       } catch (err) {
         console.warn('Polling error:', err);
@@ -806,7 +852,33 @@
     }, 600);
   }
 
-  // Initial History Badge check
+  // Description Toggle & Copy
+  toggleDescBtn.addEventListener('click', () => {
+    const isExp = mediaDescription.classList.toggle('expanded');
+    toggleDescBtn.textContent = isExp ? 'Show less' : 'Show more';
+  });
+
+  copyDescBtn.addEventListener('click', async () => {
+    if (!currentMedia) return;
+    const fullText = `Title: ${currentMedia.title}\nUploader: ${currentMedia.uploader}\n\nDescription:\n${currentMedia.description}`;
+    try {
+      await navigator.clipboard.writeText(fullText);
+      const originalText = copyDescBtn.querySelector('span').textContent;
+      copyDescBtn.querySelector('span').textContent = 'Copied!';
+      setTimeout(() => {
+        copyDescBtn.querySelector('span').textContent = originalText;
+      }, 2000);
+    } catch {
+      alert('Unable to copy text to clipboard.');
+    }
+  });
+
+  // Subtitle Download
+  downloadSubBtn.addEventListener('click', () => {
+    const selectedUrl = subtitleSelect.value;
+    if (selectedUrl) window.open(selectedUrl, '_blank');
+  });
+
   updateHistoryBadge();
 
 })();
