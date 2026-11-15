@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OmniFetch — Social Media Video & Audio Downloader</title>
+  <meta name="description" content="Universal high-speed video downloader for YouTube, TikTok, Facebook, Dailymotion and more with quality selection, watermark controls, and author metadata.">
+  <link rel="icon" type="image/png" href="/icons/favicon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0c111d">
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="theme-dark">
+  <div id="app" class="app-container">
+    <!-- Navigation Bar -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand-logo">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <span class="brand-title">OmniFetch</span>
+          <span class="brand-badge">Universal</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button id="themeToggleBtn" class="icon-btn" title="Toggle Light/Dark Theme" aria-label="Toggle Theme">
+          <svg id="themeIconDark" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+
+        <button id="historyBtn" class="pill-btn secondary" title="View Downloads History">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span class="btn-label">History</span>
+          <span id="historyCountBadge" class="count-badge hidden">0</span>
+        </button>
+
+        <button id="installAppBtn" class="pill-btn primary" title="Install on Android or Laptop">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+            <line x1="12" y1="18" x2="12.01" y2="18"></line>
+          </svg>
+          <span class="btn-label">Android App</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Hero Header -->
+      <section class="hero-section">
+        <h1 class="hero-title">Social Media Video & Audio Downloader</h1>
+        <p class="hero-subtitle">
+          Save videos from YouTube, TikTok, Facebook, Dailymotion & Instagram in up to 4K quality, with clean watermark removal and text/caption extraction.
+        </p>
+
+        <!-- Input Box Container -->
+        <div class="input-card">
+          <div class="input-row">
+            <div class="input-icon">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+            </div>
+            <input 
+              type="url" 
+              id="urlInput" 
+              placeholder="Paste social video URL (e.g., TikTok, YouTube, Facebook, Dailymotion)..." 
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <div class="input-actions">
+              <button id="pasteBtn" class="text-action-btn" title="Paste from clipboard">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+                  <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+                </svg>
+                <span>Paste</span>
+              </button>
+              <button id="fetchBtn" class="action-submit-btn">
+                <span class="btn-text">Analyze Video</span>
+                <span class="btn-spinner hidden"></span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Platform Selector & Detected Indicator -->
+          <div class="platforms-bar">
+            <span class="platforms-label">Supported Platforms:</span>
+            <div class="platform-chips">
+              <span class="chip" data-platform="youtube">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg>
+                YouTube
+              </span>
+              <span class="chip" data-platform="tiktok">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.49.18-1.9 1.12-3.72 2.58-4.96 1.66-1.44 3.98-2.13 6.15-1.72.02 1.48-.04 2.96-.04 4.44-.99-.32-2.15-.23-3.02.37-.63.41-1.11 1.04-1.36 1.75-.21.51-.24 1.07-.14 1.61.24 1.64 1.82 3.02 3.5 2.87 1.12-.01 2.19-.66 2.77-1.61.19-.33.4-.67.41-1.06.1-1.79.06-3.57.07-5.36.01-4.03-.01-8.05.02-12.07z"/></svg>
+                TikTok
+              </span>
+              <span class="chip" data-platform="facebook">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+                Facebook
+              </span>
+              <span class="chip" data-platform="dailymotion">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.16 3.05a4.79 4.79 0 0 0-4.8 4.79v.11h-2.31A7.1 7.1 0 0 0 4.95 15a7.1 7.1 0 0 0 7.1 7.1 7.02 7.02 0 0 0 4.71-1.83v1.68h4.8V7.84a4.79 4.79 0 0 0-2.4-4.79zm-7.11 14.26a2.3 2.3 0 1 1 0-4.6 2.3 2.3 0 0 1 0 4.6z"/></svg>
+                Dailymotion
+              </span>
+              <span class="chip" data-platform="instagram">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
+                Instagram
+              </span>
+            </div>
+          </div>
+
+          <!-- Quick Test Video Links -->
+          <div class="quick-samples">
+            <span class="samples-label">Quick Test Links:</span>
+            <button class="sample-link-btn" data-url="https://www.youtube.com/watch?v=jNQXAC9IVRw">
+              YouTube Sample
+            </button>
+            <button class="sample-link-btn" data-url="https://www.tiktok.com/@chemteacherphil/video/7008953610872605957">
+              TikTok Demo
+            </button>
+            <button class="sample-link-btn" data-url="https://www.dailymotion.com/video/x7tgad0">
+              Dailymotion Demo
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status / Error Notification Banner -->
+      <div id="statusBanner" class="status-banner hidden">
+        <span class="status-icon"></span>
+        <span class="status-message"></span>
+      </div>
+
+      <!-- Result Card (Shown after URL analysis) -->
+      <section id="resultSection" class="result-section hidden">
+        <div class="result-card">
+          <!-- Top Media Preview & Info -->
+          <div class="media-overview">
+            <div class="media-thumbnail-container">
+              <img id="mediaThumbnail" src="" alt="Thumbnail" class="media-thumbnail" />
+              <span id="mediaDuration" class="duration-badge">0:00</span>
+              <span id="platformBadge" class="platform-badge">YouTube</span>
+            </div>
+
+            <div class="media-details">
+              <!-- Creator Profile Card -->
+              <div class="creator-profile">
+                <div class="creator-avatar" id="creatorAvatarContainer">
+                  <img id="creatorAvatar" src="" alt="Creator Avatar" class="avatar-img hidden" />
+                  <div id="creatorAvatarFallback" class="avatar-fallback">👤</div>
+                </div>
+                <div class="creator-meta">
+                  <div class="creator-name-row">
+                    <span id="creatorName" class="creator-name">Creator Name</span>
+                    <a id="creatorLink" href="#" target="_blank" rel="noopener noreferrer" class="creator-link" title="Open Creator Channel">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                        <polyline points="15 3 21 3 21 9"></polyline>
+                        <line x1="10" y1="14" x2="21" y2="3"></line>
+                      </svg>
+                    </a>
+                  </div>
+                  <span id="creatorHandle" class="creator-handle">@username</span>
+                </div>
+              </div>
+
+              <!-- Title & Description -->
+              <h2 id="mediaTitle" class="media-title">Video Title</h2>
+
+              <div class="description-container">
+                <p id="mediaDescription" class="media-description">Video description text...</p>
+                <div class="text-tools">
+                  <button id="toggleDescBtn" class="text-link-btn hidden">Show more</button>
+                  <button id="copyDescBtn" class="text-tool-btn" title="Copy text & description">
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                      <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                    </svg>
+                    <span>Copy Text</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Options & Download Configuration -->
+          <div class="config-tabs-panel">
+            <!-- TikTok / Clean Watermark Option -->
+            <div id="watermarkControlGroup" class="config-group hidden">
+              <label class="group-label">
+                <span class="label-title">Watermark & Text Filter</span>
+                <span class="label-sub">Choose whether to keep or remove the platform's watermark overlay</span>
+              </label>
+              <div class="watermark-options">
+                <label class="radio-card active" data-wm="clean">
+                  <input type="radio" name="wmChoice" value="clean" checked>
+                  <div class="radio-content">
+                    <div class="radio-title-row">
+                      <span class="radio-badge clean">Clean HD</span>
+                      <strong class="radio-title">No Watermark</strong>
+                    </div>
+                    <span class="radio-desc">Clean full-resolution video without bouncing TikTok logo or username text</span>
+                  </div>
+                </label>
+                <label class="radio-card" data-wm="watermarked">
+                  <input type="radio" name="wmChoice" value="watermarked">
+                  <div class="radio-content">
+                    <div class="radio-title-row">
+                      <span class="radio-badge original">Original</span>
+                      <strong class="radio-title">With Watermark</strong>
+                    </div>
+                    <span class="radio-desc">Preserves author watermark and platform overlay on video</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Video Quality Options -->
+            <div id="qualityControlGroup" class="config-group">
+              <label class="group-label">
+                <span class="label-title">Choose Video Resolution & Format</span>
+                <span class="label-sub">High definition video with merged audio</span>
+              </label>
+              <div id="qualityPillsContainer" class="quality-grid">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Audio Extraction Options -->
+            <div id="audioControlGroup" class="config-group">
+              <label class="group-label">
+                <span class="label-title">Extract Audio Only</span>
+                <span class="label-sub">Download high-bitrate MP3 or original sound track</span>
+              </label>
+              <div id="audioPillsContainer" class="audio-grid">
+                <!-- Dynamically populated -->
+              </div>
+            </div>
+
+            <!-- Subtitles & Text Transcripts Options -->
+            <div id="subtitleControlGroup" class="config-group hidden">
+              <label class="group-label">
+                <span class="label-title">Subtitles & Closed Captions</span>
+                <span class="label-sub">Download on-screen captions or text transcript</span>
+              </label>
+              <div class="subtitles-action-row">
+                <select id="subtitleSelect" class="subtitle-dropdown">
+                  <!-- Populated dynamically -->
+                </select>
+                <button id="downloadSubBtn" class="pill-btn secondary">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                    <polyline points="7 10 12 15 17 10"></polyline>
+                    <line x1="12" y1="15" x2="12" y2="3"></line>
+                  </svg>
+                  <span>Download Subtitles (.VTT/.SRT)</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Download Execution Bar -->
+            <div class="download-action-bar">
+              <div class="selected-summary">
+                <span class="summary-label">Selected:</span>
+                <strong id="selectedSummaryText" class="summary-val">1080p (Full HD) — MP4</strong>
+              </div>
+
+              <button id="startDownloadBtn" class="primary-download-btn">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                  <polyline points="7 10 12 15 17 10"></polyline>
+                  <line x1="12" y1="15" x2="12" y2="3"></line>
+                </svg>
+                <span id="startDownloadBtnText">Download Now</span>
+              </button>
+            </div>
+
+            <!-- Download Progress Tracker -->
+            <div id="progressTracker" class="progress-tracker hidden">
+              <div class="progress-meta">
+                <span id="progressStatusText" class="progress-status">Downloading stream...</span>
+                <span id="progressPctText" class="progress-pct">0%</span>
+              </div>
+              <div class="progress-bar-track">
+                <div id="progressBarFill" class="progress-bar-fill" style="width: 0%"></div>
+              </div>
+              <div class="progress-details">
+                <span id="progressDownloaded">0 MB / 0 MB</span>
+                <span id="progressSpeed">-- MB/s</span>
+                <span id="progressEta">ETA: --</span>
+              </div>
+              <div id="downloadReadyCard" class="download-ready-card hidden">
+                <div class="ready-message">
+                  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="#10b981" stroke-width="2.5">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                  </svg>
+                  <span>Download Complete! File saved.</span>
+                </div>
+                <a id="saveFileDirectLink" href="#" class="save-file-btn" download>Save File Again</a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Downloads History Modal / Drawer -->
+    <div id="historyModal" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Downloads History</h3>
+          <button id="closeHistoryBtn" class="close-btn" aria-label="Close">✕</button>
+        </div>
+        <div id="historyListContainer" class="history-list">
+          <p class="empty-state">No downloads yet. Videos you download will appear here.</p>
+        </div>
+        <div class="modal-footer">
+          <button id="clearHistoryBtn" class="text-danger-btn">Clear History</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Android App Install Modal -->
+    <div id="installModal" class="modal-backdrop hidden">
+      <div class="modal-card install-card">
+        <div class="modal-header">
+          <div class="install-header-badge">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
+              <line x1="12" y1="18" x2="12.01" y2="18"></line>
+            </svg>
+            <h3 class="modal-title">Use OmniFetch on Android & Laptop</h3>
+          </div>
+          <button id="closeInstallBtn" class="close-btn" aria-label="Close">✕</button>
+        </div>
+
+        <div class="install-content">
+          <div class="install-methods">
+            <!-- Method 1: Mobile PWA -->
+            <div class="method-card">
+              <div class="method-header">
+                <span class="method-num">1</span>
+                <div>
+                  <h4 class="method-title">Instant Android PWA Install (No APK needed)</h4>
+                  <p class="method-desc">Full standalone app experience with offline capability and home screen icon.</p>
+                </div>
+              </div>
+              <ol class="method-steps">
+                <li>Open this page on your Android phone using Google Chrome.</li>
+                <li>Tap the three-dots menu <span class="badge-key">⋮</span> in Chrome.</li>
+                <li>Tap <strong>"Install app"</strong> or <strong>"Add to Home screen"</strong>.</li>
+                <li>OmniFetch is now installed on your Android app drawer!</li>
+              </ol>
+            </div>
+
+            <!-- Method 2: Android Live Test Bench Simulator -->
+            <div class="method-card">
+              <div class="method-header">
+                <span class="method-num">2</span>
+                <div>
+                  <h4 class="method-title">Preview on Laptop in Android Simulator</h4>
+                  <p class="method-desc">Test how the app runs on a simulated Pixel 8 Pro / Galaxy S24 Ultra right on your laptop screen.</p>
+                </div>
+              </div>
+              <a id="openSimulatorBtn" href="/android_test_bench.html" target="_blank" class="simulator-launch-btn">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                  <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                </svg>
+                <span>Launch Android Device Simulator</span>
+              </a>
+            </div>
+
+            <!-- Method 3: Standalone Android APK Build -->
+            <div class="method-card">
+              <div class="method-header">
+                <span class="method-num">3</span>
+                <div>
+                  <h4 class="method-title">Compile Native Android APK (Capacitor)</h4>
+                  <p class="method-desc">Package into a standard <code>.apk</code> to install or distribute.</p>
+                </div>
+              </div>
+              <div class="code-box">
+                <code>npx cap add android && npx cap open android</code>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

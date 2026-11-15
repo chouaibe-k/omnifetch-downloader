@@ -1,0 +1,12 @@
+{
+  "appId": "com.omnifetch.app",
+  "appName": "OmniFetch",
+  "webDir": "frontend",
+  "bundledWebRuntime": false,
+  "server": {
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

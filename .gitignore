@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+backend/.venv/
+.venv/
+downloads/*.mp4
+downloads/*.mp3
+downloads/*.m4a
+downloads/*.vtt
+downloads/*.srt
+downloads/*.part
+downloads/*.ytdl
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/*.iml
+android/app/*.iml
+local.properties
+.DS_Store
