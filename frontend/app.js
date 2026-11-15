@@ -902,13 +902,71 @@
       }
     }
 
-    // C. Static Web App Details & Stream Preview for YouTube / Dailymotion
-    progressBarFill.style.width = '100%';
-    progressPctText.textContent = '100%';
-    progressStatusText.textContent = 'Download Ready!';
-    completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
+    // If YouTube / external platform and no direct_url yet, query stream resolvers & Cobalt instances
+    if (!selectedOption.direct_url && currentMedia.original_url) {
+      progressStatusText.textContent = 'Resolving video stream...';
+      const streamResolvers = [
+        'https://cobalt-api.ayo.tf',
+        'https://co.kelig.me',
+        'https://dl.haloz.at',
+        'https://nyc1.coapi.ggtyler.dev',
+        'https://cal1.coapi.ggtyler.dev'
+      ];
+      for (const host of streamResolvers) {
+        try {
+          const resp = await fetch(host, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: currentMedia.original_url,
+              videoQuality: selectedOption.format_id === '1080p' ? '1080' : '720',
+              downloadMode: selectedOption.is_audio ? 'audio' : 'auto'
+            }),
+            signal: AbortSignal.timeout(3500)
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && (data.url || data.audio)) {
+              selectedOption.direct_url = data.url || data.audio;
+              break;
+            }
+          }
+        } catch (e) {
+          // try next resolver
+        }
+      }
 
-    const downloadWebUrl = `https://en.savefrom.net/#url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
+      if (selectedOption.direct_url) {
+        const success = await triggerStreamDownload(selectedOption.direct_url, filename);
+        if (success) {
+          progressBarFill.style.width = '100%';
+          progressPctText.textContent = '100%';
+          progressStatusText.textContent = 'Download Complete!';
+          completeMessageText.textContent = `File saved directly into your Downloads folder: ${filename}`;
+          downloadButtonsContainer.innerHTML = `
+            <button type="button" class="direct-dl-btn primary" id="redownloadBtn">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              Download File Again
+            </button>
+          `;
+          document.getElementById('redownloadBtn')?.addEventListener('click', () => {
+            triggerStreamDownload(selectedOption.direct_url, filename);
+          });
+          downloadReadyCard.classList.remove('hidden');
+          return;
+        }
+      }
+    }
+
+    // C. Static In-App Stream Ready & In-App Downloader (100% In-App, Zero External Redirects)
+    progressBarFill.style.width = '100%';
+    progressPctText.textContent = 'Ready';
+    progressStatusText.textContent = 'Media Stream Ready';
+    completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
@@ -917,24 +975,28 @@
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
-          <strong>Download Ready — ${escapeHtml(currentMedia.platform.toUpperCase())} Video</strong>
+          <strong>${escapeHtml(currentMedia.platform.toUpperCase())} Video Information</strong>
         </div>
         <p class="notice-text">
-          Selected: <strong>${escapeHtml(selectedOption.label)} (${escapeHtml(selectedOption.ext.toUpperCase())})</strong> • Uploader: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
+          Selected: <strong>${escapeHtml(selectedOption.label)} (${escapeHtml(selectedOption.ext.toUpperCase())})</strong> • Creator: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
         </p>
+
+        ${currentMedia.vid && currentMedia.platform === 'youtube' ? `
+          <div class="inapp-converter-box">
+            <div class="inapp-converter-title">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+              <strong>In-App Video & Audio Downloader</strong>
+            </div>
+            <p class="inapp-converter-subtitle">Click below to generate and save your ${selectedOption.is_audio ? 'MP3 Audio' : 'MP4 Video'} directly into your Downloads folder:</p>
+            <iframe id="inappDownloaderFrame" src="https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}" style="width:100%; height:260px; border:1px solid rgba(255,255,255,0.12); border-radius:10px; background:#111827;" allow="clipboard-write" sandbox="allow-scripts allow-forms allow-downloads allow-same-origin allow-popups allow-popups-to-escape-sandbox"></iframe>
+          </div>
+        ` : ''}
+
         <div class="stream-action-row">
-          <a href="${downloadWebUrl}" target="_blank" rel="noopener noreferrer" class="direct-dl-btn primary" id="mainDownloadBtn">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
-            </svg>
-            Download ${selectedOption.is_audio ? 'Audio (MP3)' : `MP4 Video (${escapeHtml(selectedOption.label)})`}
-          </a>
           ${currentMedia.embed_url ? `
-            <button type="button" class="direct-dl-btn secondary" id="launchPlayerBtn">
+            <button type="button" class="direct-dl-btn primary" id="launchPlayerBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-              Watch Video Stream
+              Watch Video Stream In-App
             </button>
           ` : ''}
           <button type="button" class="direct-dl-btn secondary" id="copyDetailsBtn">
@@ -942,32 +1004,14 @@
             Copy Video Info
           </button>
         </div>
-        <div class="mobile-app-callout">
-          <div class="callout-icon">📱</div>
-          <div class="callout-content">
-            <div class="callout-title">Direct File Downloads on Mobile (Android App)</div>
-            <p class="callout-desc">
-              Your <strong>OmniFetch Android App</strong> is available in your Google Drive. It downloads videos from all platforms directly into your phone's <strong>Download</strong> folder without web browser limitations.
-            </p>
-            <a href="https://drive.google.com/file/d/1hUPF-z_yKGQMhpLYaA-R6e5PlwyIK9kL/view?usp=drivesdk" target="_blank" rel="noopener noreferrer" class="drive-apk-link">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM17 13l-5 5-5-5h3V9h4v4h3z"/></svg>
-              Open Android APK in Google Drive
-            </a>
-          </div>
-        </div>
       </div>
     `;
 
-    document.getElementById('mainDownloadBtn')?.addEventListener('click', () => {
-      saveHistoryItem({
-        id: Date.now().toString(),
-        title: currentMedia.title,
-        thumbnail: currentMedia.thumbnail,
-        platform: currentMedia.platform,
-        label: selectedOption.label,
-        downloadUrl: downloadWebUrl,
-        date: new Date().toISOString()
-      });
+    // Listen for in-app download trigger from iframe
+    window.addEventListener('message', (event) => {
+      if (event.data && event.data.type === 'vevioz-api-download' && typeof event.data.url === 'string') {
+        triggerStreamDownload(event.data.url, filename);
+      }
     });
 
     document.getElementById('launchPlayerBtn')?.addEventListener('click', () => {
@@ -993,6 +1037,16 @@
   }
 
   async function triggerStreamDownload(url, filename) {
+    // 1. Native Android App: Use AndroidBridge to download straight into Android Downloads folder
+    if (window.AndroidBridge && typeof window.AndroidBridge.downloadUrl === 'function' && url.startsWith('http')) {
+      progressBarFill.style.width = '100%';
+      progressPctText.textContent = '100%';
+      progressStatusText.textContent = 'Download Complete!';
+      completeMessageText.textContent = `File saved directly into your device's Downloads folder: ${filename}`;
+      window.AndroidBridge.downloadUrl(url, filename, selectedOption.is_audio ? 'audio/mpeg' : 'video/mp4');
+      return true;
+    }
+
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -1031,17 +1085,42 @@
         }
       }
 
-      const blob = new Blob(chunks, { type: 'video/mp4' });
+      const mimeType = selectedOption.is_audio ? 'audio/mpeg' : 'video/mp4';
+      const blob = new Blob(chunks, { type: mimeType });
       saveBlobLocally(blob, filename);
       return true;
 
     } catch (err) {
-      console.warn('Direct blob fetch failed:', err);
+      console.warn('Direct stream fetch failed:', err);
+      // Fallback: direct download link if CORS fetch was blocked
+      if (url.startsWith('http')) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return true;
+      }
       return false;
     }
   }
 
   function saveBlobLocally(blob, filename) {
+    // 1. Android Native App: write base64 directly to device Downloads folder
+    if (window.AndroidBridge && typeof window.AndroidBridge.saveBase64 === 'function') {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64Data = (reader.result || '').split(',')[1];
+        if (base64Data) {
+          window.AndroidBridge.saveBase64(base64Data, filename, blob.type || 'video/mp4');
+        }
+      };
+      reader.readAsDataURL(blob);
+      return;
+    }
+
+    // 2. Laptop / Desktop Browser: trigger native browser download into chosen Downloads folder
     const objectUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = objectUrl;

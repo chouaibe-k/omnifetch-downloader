@@ -1340,19 +1340,31 @@ body {
   margin: 0;
 }
 
-.drive-apk-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+.inapp-converter-box {
+  width: 100%;
+  padding: 12px 14px;
+  background: rgba(17, 24, 39, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: 6px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #10b981;
-  text-decoration: underline;
 }
 
-.drive-apk-link:hover {
-  color: #34d399;
+.inapp-converter-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.inapp-converter-subtitle {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
 }
 
 /* Utilities */
