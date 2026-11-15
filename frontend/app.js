@@ -294,6 +294,8 @@
         });
         if (resp.ok) {
           data = await resp.json();
+          data.backend_available = true;
+          data.original_url = url;
         }
       } catch (e) {
         console.log('Local backend not reachable, using direct client extractor');
@@ -698,7 +700,41 @@
     const safeTitle = (currentMedia.title || 'video').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'video';
     const filename = `${safeTitle}.${selectedOption.ext || 'mp4'}`;
 
-    // 1. Direct stream URL available (TikTok Clean/Watermarked, Audio)
+    // A. Backend Engine is Available (Local laptop engine or self-hosted API)
+    if (currentMedia.backend_available) {
+      progressStatusText.textContent = `Starting download for ${selectedOption.label}...`;
+      progressBarFill.style.width = '20%';
+      progressPctText.textContent = '20%';
+      progressDownloaded.textContent = 'Initializing engine...';
+      progressSpeed.textContent = 'High Speed';
+      progressEta.textContent = 'Calculating...';
+
+      try {
+        const dlResp = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: currentMedia.original_url || currentMedia.webpage_url,
+            format_id: selectedOption.format_id || 'best',
+            title: currentMedia.title || 'video',
+            is_audio: selectedOption.is_audio || false,
+            direct_url: selectedOption.direct_url,
+            ext: selectedOption.ext || 'mp4'
+          })
+        });
+        if (dlResp.ok) {
+          const dlData = await dlResp.json();
+          if (dlData.job_id) {
+            pollJobStatus(dlData.job_id);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('Backend download call failed:', err);
+      }
+    }
+
+    // B. Direct Stream URL Available (e.g. TikTok Clean HD, Watermarked, Audio)
     if (selectedOption.direct_url) {
       progressStatusText.textContent = `Downloading ${selectedOption.label}...`;
       progressBarFill.style.width = '30%';
@@ -716,15 +752,18 @@
         completeMessageText.textContent = `File saved to your Downloads folder: ${filename}`;
         
         downloadButtonsContainer.innerHTML = `
-          <a href="${selectedOption.direct_url}" class="mirror-dl-btn primary" download="${filename}" target="_blank" rel="noopener noreferrer">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
+          <button type="button" class="direct-dl-btn primary" id="redownloadBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
             Download File Again
-          </a>
+          </button>
         `;
+        document.getElementById('redownloadBtn')?.addEventListener('click', () => {
+          triggerStreamDownload(selectedOption.direct_url, filename);
+        });
         downloadReadyCard.classList.remove('hidden');
 
         saveHistoryItem({
@@ -738,83 +777,61 @@
         });
         return;
       } else {
-        // Direct stream fetch blocked by browser CORS policy: provide direct stream link
+        // Direct stream ready without popup
         progressBarFill.style.width = '100%';
         progressPctText.textContent = '100%';
         progressStatusText.textContent = 'Direct Stream Ready!';
-        completeMessageText.textContent = 'Click below to save the video stream to your Downloads folder:';
+        completeMessageText.textContent = `Click below to save ${filename} directly into your Downloads folder:`;
         downloadButtonsContainer.innerHTML = `
-          <a href="${selectedOption.direct_url}" class="mirror-dl-btn primary" download="${filename}" target="_blank" rel="noopener noreferrer">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
+          <a href="${selectedOption.direct_url}" class="direct-dl-btn primary" download="${filename}">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
               <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
               <polyline points="7 10 12 15 17 10"></polyline>
               <line x1="12" y1="15" x2="12" y2="3"></line>
             </svg>
-            Save ${filename}
+            Save ${filename} to Downloads
           </a>
         `;
         downloadReadyCard.classList.remove('hidden');
-        window.open(selectedOption.direct_url, '_blank');
         return;
       }
     }
 
-    // 2. YouTube: Provide direct 1-click Download Mirrors
-    if (currentMedia.platform === 'youtube') {
-      const vid = currentMedia.vid || '';
-      progressBarFill.style.width = '100%';
-      progressPctText.textContent = '100%';
-      progressStatusText.textContent = 'Ready to Download!';
-      progressDownloaded.textContent = 'Direct Mirrors';
-      progressSpeed.textContent = 'High Speed';
-      progressEta.textContent = 'Ready';
-
-      completeMessageText.textContent = 'Select your download mirror to save the MP4 / MP3 to your Downloads folder:';
-      
-      const ssUrl = `https://www.ssyoutube.com/watch?v=${vid}`;
-      const y2Url = `https://www.y2mate.com/youtube/${vid}`;
-      const cobaltUrl = 'https://cobalt.tools/';
-      const d10Url = `https://10downloader.com/download?v=https://www.youtube.com/watch?v=${vid}`;
-
-      downloadButtonsContainer.innerHTML = `
-        <a href="${ssUrl}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn primary">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Download via SSYouTube (SaveFrom)
-        </a>
-        <a href="${y2Url}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
-          Download via Y2Mate (MP4 / MP3)
-        </a>
-        <a href="${cobaltUrl}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
-          Open Cobalt Tools
-        </a>
-        <a href="${d10Url}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
-          Download via 10Downloader
-        </a>
-      `;
-      downloadReadyCard.classList.remove('hidden');
-
-      // Open primary mirror in new tab
-      window.open(ssUrl, '_blank');
-      return;
-    }
-
-    // 3. Fallback Instant Mirror for other platforms
-    const mirrorUrl = `https://cobalt.tools/`;
+    // C. Static Web App Guidance for YouTube / Platforms Requiring Engine
     progressBarFill.style.width = '100%';
-    progressPctText.textContent = '100%';
-    progressStatusText.textContent = 'Download mirror ready:';
-    completeMessageText.textContent = 'Click below to download via stream mirror:';
+    progressPctText.textContent = 'Ready';
+    progressStatusText.textContent = 'Video Metadata Extracted';
+    completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
+
     downloadButtonsContainer.innerHTML = `
-      <a href="${mirrorUrl}" class="mirror-dl-btn primary" target="_blank" rel="noopener noreferrer">
-        Open Download Mirror
-      </a>
+      <div class="direct-notice-box">
+        <div class="notice-header">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#3b82f6" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          <strong>Direct In-App Downloading</strong>
+        </div>
+        <p class="notice-text">
+          TikTok videos download <strong>100% directly</strong> in your browser into your Downloads folder.
+        </p>
+        <p class="notice-text">
+          For YouTube 1080p/4K downloads directly into your laptop's <strong>Downloads folder</strong> with <strong>zero external websites or ads</strong>, launch the 1-Click OmniFetch Desktop Engine or use the Android App:
+        </p>
+        <div class="launcher-buttons-row">
+          <a href="run_desktop.bat" download="run_desktop.bat" class="launcher-btn primary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Windows Launcher (.bat)
+          </a>
+          <a href="run_desktop.sh" download="run_desktop.sh" class="launcher-btn secondary">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+            Download Mac/Linux Launcher (.sh)
+          </a>
+        </div>
+      </div>
     `;
     downloadReadyCard.classList.remove('hidden');
-    window.open(mirrorUrl, '_blank');
   }
 
   async function triggerStreamDownload(url, filename) {
@@ -950,7 +967,15 @@
   // Subtitle Download
   downloadSubBtn.addEventListener('click', () => {
     const selectedUrl = subtitleSelect.value;
-    if (selectedUrl) window.open(selectedUrl, '_blank');
+    if (selectedUrl) {
+      const safeTitle = (currentMedia?.title || 'subtitles').replace(/[/\\?%*:|"<>]/g, '_').trim();
+      const a = document.createElement('a');
+      a.href = selectedUrl;
+      a.download = `${safeTitle}_subtitles.vtt`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
   });
 
   updateHistoryBadge();
