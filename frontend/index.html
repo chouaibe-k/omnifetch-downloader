@@ -7,12 +7,15 @@
   <meta name="description" content="Download videos from TikTok (clean without watermark), YouTube, Facebook, Dailymotion & Instagram in up to 4K quality with text & creator info.">
   <link rel="icon" type="image/png" href="./icons/favicon.png">
   <link rel="manifest" href="./manifest.webmanifest">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
   <meta name="theme-color" content="#0b0f19">
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="./styles.css?v=4">
+  <link rel="stylesheet" href="./styles.css?v=5">
 </head>
 <body class="theme-dark">
   <div id="app" class="app-container">
@@ -28,25 +31,11 @@
         </div>
         <div class="brand-info">
           <span class="brand-name">OmniFetch</span>
-          <span class="brand-tag">Web & Mobile</span>
+          <span class="brand-tag">Universal Downloader</span>
         </div>
       </div>
 
       <div class="header-controls">
-        <a href="https://drive.google.com/file/d/1hUPF-z_yKGQMhpLYaA-R6e5PlwyIK9kL/view?usp=drivesdk" target="_blank" rel="noopener noreferrer" class="drive-apk-btn" title="Download APK from Google Drive">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-            <path d="M12.01 1.99c-5.52 0-10 4.48-10 10s4.48 10 10 10 10-4.48 10-10-4.48-10-10-10zm-1.01 14.5l-4-4 1.41-1.41 2.59 2.58 5.59-5.59 1.41 1.41-7 7z"/>
-          </svg>
-          <span>Drive APK</span>
-        </a>
-
-        <a href="https://github.com/chouaibe-k/omnifetch-downloader/releases" target="_blank" rel="noopener noreferrer" class="github-apk-btn" title="Download APK from GitHub Releases">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
-            <rect x="5" y="2" width="14" height="20" rx="3" ry="3"></rect>
-            <line x1="12" y1="18" x2="12.01" y2="18"></line>
-          </svg>
-          <span>Android App</span>
-        </a>
 
         <button id="themeToggleBtn" class="icon-toggle-btn" title="Toggle Light/Dark Theme" aria-label="Toggle Theme" type="button">
           <svg id="themeIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
@@ -207,13 +196,15 @@
         </div>
         <div id="downloadReadyCard" class="download-complete-card hidden">
           <div class="complete-message">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.5">
+            <svg id="completeStatusIcon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.5">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
               <polyline points="22 4 12 14.01 9 11.01"></polyline>
             </svg>
             <span id="completeMessageText">Download Ready! File saved to your device.</span>
           </div>
-          <a id="saveFileDirectLink" href="#" class="save-file-link" download target="_blank" rel="noopener noreferrer">Download File Again</a>
+          <div id="downloadButtonsContainer" class="mirror-buttons-grid">
+            <a id="saveFileDirectLink" href="#" class="save-file-link" download target="_blank" rel="noopener noreferrer">Download File Again</a>
+          </div>
         </div>
       </div>
 
@@ -360,6 +351,6 @@
   </div>
 
   <!-- Client Script with cache-busting -->
-  <script src="./app.js?v=4"></script>
+  <script src="./app.js?v=5"></script>
 </body>
 </html>

@@ -60,6 +60,7 @@
   const downloadReadyCard = document.getElementById('downloadReadyCard');
   const saveFileDirectLink = document.getElementById('saveFileDirectLink');
   const completeMessageText = document.getElementById('completeMessageText');
+  const downloadButtonsContainer = document.getElementById('downloadButtonsContainer');
 
   // Theme & History
   const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -70,12 +71,15 @@
   const historyListContainer = document.getElementById('historyListContainer');
   const clearHistoryBtn = document.getElementById('clearHistoryBtn');
 
-  // Service Worker Registration
+  // Purge any stale Service Workers and Caches immediately
   if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch((err) => {
-        console.warn('SW registration failed:', err);
-      });
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      for (const reg of registrations) reg.unregister();
+    });
+  }
+  if ('caches' in window) {
+    caches.keys().then((names) => {
+      for (const name of names) caches.delete(name);
     });
   }
 
@@ -188,18 +192,44 @@
     updatePlatformChips(p);
   });
 
-  // Paste Action
+  // Bulletproof Paste Action
   pasteBtn.addEventListener('click', async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        urlInput.value = text.trim();
-        updatePlatformChips(detectPlatform(urlInput.value));
-        processDownload();
+    let text = '';
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      try {
+        text = await navigator.clipboard.readText();
+      } catch (err) {
+        console.warn('Clipboard readText restricted by browser:', err);
       }
-    } catch {
-      urlInput.focus();
     }
+
+    if (text && text.trim()) {
+      urlInput.value = text.trim();
+      updatePlatformChips(detectPlatform(urlInput.value));
+      processDownload();
+      return;
+    }
+
+    // Direct fallback: prompt user so they can paste with right-click or Ctrl+V
+    const manualText = window.prompt('Paste your video link below:', urlInput.value || '');
+    if (manualText && manualText.trim()) {
+      urlInput.value = manualText.trim();
+      updatePlatformChips(detectPlatform(urlInput.value));
+      processDownload();
+    } else {
+      urlInput.focus();
+      urlInput.select();
+    }
+  });
+
+  // Also detect native paste events (right-click -> paste or Ctrl+V / Cmd+V)
+  urlInput.addEventListener('paste', () => {
+    setTimeout(() => {
+      const val = urlInput.value.trim();
+      if (val) {
+        updatePlatformChips(detectPlatform(val));
+      }
+    }, 50);
   });
 
   // Sample Links
@@ -398,6 +428,7 @@
 
       return {
         platform: 'youtube',
+        vid: vid,
         title: title,
         description: `Video by ${author}. High-definition streams available.`,
         uploader: author,
@@ -408,14 +439,15 @@
         duration: 0,
         duration_str: 'Full Video',
         has_watermark_options: false,
+        is_mirror_required: true,
         qualities: [
-          { format_id: '1080p', label: '1080p (Full HD)', resolution: '1920x1080', ext: 'mp4', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=22` : null },
-          { format_id: '720p', label: '720p (HD)', resolution: '1280x720', ext: 'mp4', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=18` : null },
+          { format_id: '1080p', label: '1080p (Full HD)', resolution: '1920x1080', ext: 'mp4', direct_url: null },
+          { format_id: '720p', label: '720p (HD)', resolution: '1280x720', ext: 'mp4', direct_url: null },
           { format_id: '480p', label: '480p (SD)', resolution: '854x480', ext: 'mp4', direct_url: null },
           { format_id: '360p', label: '360p (Data Saver)', resolution: '640x360', ext: 'mp4', direct_url: null }
         ],
         audio_options: [
-          { format_id: 'mp3', label: 'Audio MP3 (320kbps)', ext: 'mp3', is_audio: true, direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=140` : null }
+          { format_id: 'mp3', label: 'Audio MP3 (320kbps)', ext: 'mp3', is_audio: true, direct_url: null }
         ],
         subtitles: [],
         original_url: url
@@ -663,76 +695,124 @@
 
     if (activePollInterval) clearInterval(activePollInterval);
 
+    const safeTitle = (currentMedia.title || 'video').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'video';
+    const filename = `${safeTitle}.${selectedOption.ext || 'mp4'}`;
+
     // 1. Direct stream URL available (TikTok Clean/Watermarked, Audio)
     if (selectedOption.direct_url) {
-      const safeTitle = (currentMedia.title || 'video').replace(/[/\\?%*:|"<>]/g, '_').trim() || 'video';
-      const filename = `${safeTitle}.${selectedOption.ext || 'mp4'}`;
-
       progressStatusText.textContent = `Downloading ${selectedOption.label}...`;
-      progressBarFill.style.width = '50%';
-      progressPctText.textContent = '50%';
+      progressBarFill.style.width = '30%';
+      progressPctText.textContent = '30%';
       progressDownloaded.textContent = selectedOption.filesize_str || 'Connecting...';
-      progressSpeed.textContent = 'Fast Stream';
-      progressEta.textContent = 'Saving...';
+      progressSpeed.textContent = 'High Speed';
+      progressEta.textContent = 'Streaming...';
 
-      saveFileDirectLink.href = selectedOption.direct_url;
-      completeMessageText.textContent = `Downloading: ${filename}`;
-      downloadReadyCard.classList.remove('hidden');
+      const success = await triggerStreamDownload(selectedOption.direct_url, filename);
 
-      await triggerStreamDownload(selectedOption.direct_url, filename);
+      if (success) {
+        progressBarFill.style.width = '100%';
+        progressPctText.textContent = '100%';
+        progressStatusText.textContent = 'Download Complete!';
+        completeMessageText.textContent = `File saved to your Downloads folder: ${filename}`;
+        
+        downloadButtonsContainer.innerHTML = `
+          <a href="${selectedOption.direct_url}" class="mirror-dl-btn primary" download="${filename}" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download File Again
+          </a>
+        `;
+        downloadReadyCard.classList.remove('hidden');
 
+        saveHistoryItem({
+          id: Date.now().toString(),
+          title: currentMedia.title,
+          thumbnail: currentMedia.thumbnail,
+          platform: currentMedia.platform,
+          label: selectedOption.label,
+          downloadUrl: selectedOption.direct_url,
+          date: new Date().toISOString()
+        });
+        return;
+      } else {
+        // Direct stream fetch blocked by browser CORS policy: provide direct stream link
+        progressBarFill.style.width = '100%';
+        progressPctText.textContent = '100%';
+        progressStatusText.textContent = 'Direct Stream Ready!';
+        completeMessageText.textContent = 'Click below to save the video stream to your Downloads folder:';
+        downloadButtonsContainer.innerHTML = `
+          <a href="${selectedOption.direct_url}" class="mirror-dl-btn primary" download="${filename}" target="_blank" rel="noopener noreferrer">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Save ${filename}
+          </a>
+        `;
+        downloadReadyCard.classList.remove('hidden');
+        window.open(selectedOption.direct_url, '_blank');
+        return;
+      }
+    }
+
+    // 2. YouTube: Provide direct 1-click Download Mirrors
+    if (currentMedia.platform === 'youtube') {
+      const vid = currentMedia.vid || '';
       progressBarFill.style.width = '100%';
       progressPctText.textContent = '100%';
-      progressStatusText.textContent = 'Download Complete!';
-      completeMessageText.textContent = `Saved: ${filename}`;
-      saveFileDirectLink.textContent = 'Download File Again';
+      progressStatusText.textContent = 'Ready to Download!';
+      progressDownloaded.textContent = 'Direct Mirrors';
+      progressSpeed.textContent = 'High Speed';
+      progressEta.textContent = 'Ready';
 
-      saveHistoryItem({
-        id: Date.now().toString(),
-        title: currentMedia.title,
-        thumbnail: currentMedia.thumbnail,
-        platform: currentMedia.platform,
-        label: selectedOption.label,
-        downloadUrl: selectedOption.direct_url,
-        date: new Date().toISOString()
-      });
+      completeMessageText.textContent = 'Select your download mirror to save the MP4 / MP3 to your Downloads folder:';
+      
+      const ssUrl = `https://www.ssyoutube.com/watch?v=${vid}`;
+      const y2Url = `https://www.y2mate.com/youtube/${vid}`;
+      const cobaltUrl = 'https://cobalt.tools/';
+      const d10Url = `https://10downloader.com/download?v=https://www.youtube.com/watch?v=${vid}`;
+
+      downloadButtonsContainer.innerHTML = `
+        <a href="${ssUrl}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn primary">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          Download via SSYouTube (SaveFrom)
+        </a>
+        <a href="${y2Url}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
+          Download via Y2Mate (MP4 / MP3)
+        </a>
+        <a href="${cobaltUrl}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
+          Open Cobalt Tools
+        </a>
+        <a href="${d10Url}" target="_blank" rel="noopener noreferrer" class="mirror-dl-btn secondary">
+          Download via 10Downloader
+        </a>
+      `;
+      downloadReadyCard.classList.remove('hidden');
+
+      // Open primary mirror in new tab
+      window.open(ssUrl, '_blank');
       return;
     }
 
-    // 2. Local Backend Job Mode (if running locally)
-    try {
-      const payload = {
-        url: currentMedia.original_url,
-        format_id: selectedOption.format_id,
-        title: currentMedia.title,
-        is_audio: selectedOption.is_audio,
-        direct_url: selectedOption.direct_url,
-        ext: selectedOption.ext
-      };
-
-      const resp = await fetch('/api/download', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (resp.ok) {
-        const { job_id } = await resp.json();
-        pollJobStatus(job_id);
-        return;
-      }
-    } catch (e) {
-      console.log('Backend job download not available, offering web mirror link');
-    }
-
-    // 3. Fallback Instant Mirror for YouTube / socials on static GitHub Pages
+    // 3. Fallback Instant Mirror for other platforms
     const mirrorUrl = `https://cobalt.tools/`;
     progressBarFill.style.width = '100%';
     progressPctText.textContent = '100%';
-    progressStatusText.textContent = 'Stream ready! Click below to save:';
-    saveFileDirectLink.href = mirrorUrl;
-    saveFileDirectLink.textContent = 'Open Fast Download Mirror';
-    completeMessageText.textContent = 'Stream link generated!';
+    progressStatusText.textContent = 'Download mirror ready:';
+    completeMessageText.textContent = 'Click below to download via stream mirror:';
+    downloadButtonsContainer.innerHTML = `
+      <a href="${mirrorUrl}" class="mirror-dl-btn primary" target="_blank" rel="noopener noreferrer">
+        Open Download Mirror
+      </a>
+    `;
     downloadReadyCard.classList.remove('hidden');
     window.open(mirrorUrl, '_blank');
   }
@@ -748,7 +828,7 @@
       if (!response.body || !totalBytes) {
         const blob = await response.blob();
         saveBlobLocally(blob, filename);
-        return;
+        return true;
       }
 
       const reader = response.body.getReader();
@@ -778,17 +858,11 @@
 
       const blob = new Blob(chunks, { type: 'video/mp4' });
       saveBlobLocally(blob, filename);
+      return true;
 
     } catch (err) {
-      console.warn('Direct blob fetch failed, falling back to direct anchor click:', err);
-      const a = document.createElement('a');
-      a.href = url;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      console.warn('Direct blob fetch failed:', err);
+      return false;
     }
   }
 

@@ -1179,6 +1179,47 @@ body {
   cursor: pointer;
 }
 
+/* Mirror Download Buttons */
+.mirror-buttons-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.mirror-dl-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.mirror-dl-btn.primary {
+  background: var(--brand-primary);
+  color: #ffffff;
+}
+
+.mirror-dl-btn.primary:hover {
+  background: var(--brand-hover);
+  transform: translateY(-1px);
+}
+
+.mirror-dl-btn.secondary {
+  background: var(--bg-surface-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+}
+
+.mirror-dl-btn.secondary:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-focus);
+}
+
 /* Utilities */
 .hidden {
   display: none !important;
