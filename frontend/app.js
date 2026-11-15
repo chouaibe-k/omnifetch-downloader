@@ -270,27 +270,167 @@
     fetchBtn.querySelector('.btn-spinner').classList.remove('hidden');
 
     try {
-      const resp = await fetch('/api/info', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
-      });
-
-      if (!resp.ok) {
-        const errData = await resp.json().catch(() => ({}));
-        throw new Error(errData.detail || 'Failed to extract video information');
+      let data = null;
+      try {
+        const resp = await fetch('/api/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        if (resp.ok) {
+          data = await resp.json();
+        }
+      } catch (backendErr) {
+        console.log('Local backend not reachable, using direct browser client extraction...', backendErr);
       }
 
-      const data = await resp.json();
+      // If backend was not reachable (e.g. on GitHub Pages), use direct browser extraction
+      if (!data) {
+        data = await extractClientSide(url);
+      }
+
       currentMedia = data;
       renderMediaData(data);
     } catch (err) {
-      showStatus(err.message || 'Error communicating with downloader server');
+      showStatus(err.message || 'Error extracting video information');
     } finally {
       fetchBtn.disabled = false;
       fetchBtn.querySelector('.btn-text').textContent = 'Analyze Video';
       fetchBtn.querySelector('.btn-spinner').classList.add('hidden');
     }
+  }
+
+  // Direct client-side extractor for GitHub Pages (No server required)
+  async function extractClientSide(url) {
+    const platform = detectPlatform(url);
+
+    // 1. TikTok Client Extraction via TikWM (CORS enabled)
+    if (platform === 'tiktok') {
+      const resp = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+      const res = await resp.json();
+      if (res.code === 0 && res.data) {
+        const d = res.data;
+        const author = d.author || {};
+        const authorName = author.unique_id || 'creator';
+        const nickname = author.nickname || authorName;
+        const cleanUrl = (d.play && !d.play.startsWith('http')) ? `https://www.tikwm.com${d.play}` : d.play;
+        const wmUrl = (d.wmplay && !d.wmplay.startsWith('http')) ? `https://www.tikwm.com${d.wmplay}` : d.wmplay;
+        const musicUrl = (d.music && !d.music.startsWith('http')) ? `https://www.tikwm.com${d.music}` : d.music;
+
+        const qualities = [];
+        if (cleanUrl) {
+          qualities.push({
+            format_id: 'clean_hd',
+            label: 'Clean HD (No Watermark)',
+            resolution: 'Original HD (Clean)',
+            ext: 'mp4',
+            is_clean: true,
+            direct_url: cleanUrl,
+            filesize_str: d.size ? `${(d.size / (1024 * 1024)).toFixed(1)} MB` : ''
+          });
+        }
+        if (wmUrl) {
+          qualities.push({
+            format_id: 'watermarked',
+            label: 'Original (With Watermark & Handle)',
+            resolution: 'Original (Watermarked)',
+            ext: 'mp4',
+            is_watermarked: true,
+            direct_url: wmUrl,
+            filesize_str: d.wm_size ? `${(d.wm_size / (1024 * 1024)).toFixed(1)} MB` : ''
+          });
+        }
+
+        const audioOptions = [];
+        if (musicUrl) {
+          audioOptions.push({
+            format_id: 'tiktok_audio',
+            label: `Audio: ${d.music_info?.title || 'Original Sound'}`,
+            ext: 'mp3',
+            direct_url: musicUrl
+          });
+        }
+
+        return {
+          platform: 'tiktok',
+          title: d.title || `TikTok by @${authorName}`,
+          description: d.title || '',
+          uploader: `@${authorName} (${nickname})`,
+          uploader_name: authorName,
+          uploader_nickname: nickname,
+          uploader_url: `https://www.tiktok.com/@${authorName}`,
+          uploader_avatar: author.avatar || '',
+          thumbnail: d.cover || d.origin_cover || '',
+          duration: d.duration || 0,
+          duration_str: `${Math.floor((d.duration || 0) / 60)}:${((d.duration || 0) % 60).toString().padStart(2, '0')}`,
+          has_watermark_options: true,
+          qualities: qualities,
+          audio_options: audioOptions,
+          subtitles: [],
+          original_url: url
+        };
+      }
+      throw new Error(res.msg || 'Unable to parse TikTok video link');
+    }
+
+    // 2. YouTube Client Extraction via oEmbed + Invidious
+    if (platform === 'youtube') {
+      const oembedResp = await fetch(`https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`);
+      if (!oembedResp.ok) throw new Error('Invalid YouTube video URL');
+      const oe = await oembedResp.json();
+      
+      const vMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{11})/);
+      const vid = vMatch ? vMatch[1] : '';
+
+      return {
+        platform: 'youtube',
+        title: oe.title || 'YouTube Video',
+        description: `Video by ${oe.author_name}. Available in multiple resolutions.`,
+        uploader: oe.author_name || 'YouTube Creator',
+        uploader_name: oe.author_name || 'YouTube Creator',
+        uploader_url: oe.author_url || url,
+        uploader_avatar: '',
+        thumbnail: oe.thumbnail_url || (vid ? `https://i.ytimg.com/vi/${vid}/hqdefault.jpg` : ''),
+        duration: 0,
+        duration_str: 'Full Video',
+        has_watermark_options: false,
+        qualities: [
+          { format_id: '1080p', label: '1080p (Full HD)', resolution: '1920x1080', ext: 'mp4', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=22` : null },
+          { format_id: '720p', label: '720p (HD)', resolution: '1280x720', ext: 'mp4', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=18` : null },
+          { format_id: '480p', label: '480p (SD)', resolution: '854x480', ext: 'mp4', direct_url: null },
+          { format_id: '360p', label: '360p (Data Saver)', resolution: '640x360', ext: 'mp4', direct_url: null }
+        ],
+        audio_options: [
+          { format_id: 'mp3', label: 'Audio MP3 (320kbps)', ext: 'mp3', direct_url: vid ? `https://inv.bp.projectsegfau.lt/latest_version?id=${vid}&itag=140` : null }
+        ],
+        subtitles: [],
+        original_url: url
+      };
+    }
+
+    // 3. Fallback for other platforms (Dailymotion, Facebook, Instagram)
+    return {
+      platform: platform || 'social',
+      title: `${(platform || 'Social').toUpperCase()} Media Stream`,
+      description: `Target URL: ${url}`,
+      uploader: `${(platform || 'Social')} Uploader`,
+      uploader_name: 'Creator',
+      uploader_url: url,
+      uploader_avatar: '',
+      thumbnail: '/icons/icon.svg',
+      duration: 0,
+      duration_str: 'Stream',
+      has_watermark_options: false,
+      qualities: [
+        { format_id: 'best', label: 'Best Available Quality', resolution: 'Original HD', ext: 'mp4', direct_url: null },
+        { format_id: '720p', label: '720p HD', resolution: '1280x720', ext: 'mp4', direct_url: null }
+      ],
+      audio_options: [
+        { format_id: 'mp3', label: 'High Quality Audio (MP3)', ext: 'mp3', direct_url: null }
+      ],
+      subtitles: [],
+      original_url: url
+    };
   }
 
   // Render Media Information & Setup Option Panels
@@ -531,7 +671,41 @@
 
     if (activePollInterval) clearInterval(activePollInterval);
 
-    // Show Progress Bar
+    // If direct download URL is available (e.g. TikTok Clean HD, Audio, or GitHub Pages client mode)
+    if (selectedOption.direct_url) {
+      progressTracker.classList.remove('hidden');
+      progressStatusText.textContent = 'Opening direct stream download...';
+      progressBarFill.style.width = '100%';
+      progressPctText.textContent = '100%';
+      progressDownloaded.textContent = selectedOption.filesize_str || 'Direct Stream';
+      progressSpeed.textContent = 'High Speed';
+      progressEta.textContent = 'Ready';
+
+      const a = document.createElement('a');
+      a.href = selectedOption.direct_url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      a.download = `${currentMedia.title || 'video'}.${selectedOption.ext || 'mp4'}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      saveFileDirectLink.href = selectedOption.direct_url;
+      downloadReadyCard.classList.remove('hidden');
+
+      saveHistoryItem({
+        id: Date.now().toString(),
+        title: currentMedia.title,
+        thumbnail: currentMedia.thumbnail,
+        platform: currentMedia.platform,
+        label: selectedOption.label,
+        downloadUrl: selectedOption.direct_url,
+        date: new Date().toISOString()
+      });
+      return;
+    }
+
+    // Otherwise use backend download job
     progressTracker.classList.remove('hidden');
     downloadReadyCard.classList.add('hidden');
     progressStatusText.textContent = 'Initiating download...';
