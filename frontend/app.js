@@ -63,6 +63,8 @@
   const saveFileDirectLink = document.getElementById('saveFileDirectLink');
   const completeMessageText = document.getElementById('completeMessageText');
   const downloadButtonsContainer = document.getElementById('downloadButtonsContainer');
+  const cardDownloadBtn = document.getElementById('cardDownloadBtn');
+  const cardDownloadBtnText = document.getElementById('cardDownloadBtnText');
 
   // Theme & History
   const themeToggleBtn = document.getElementById('themeToggleBtn');
@@ -258,6 +260,18 @@
   urlInput.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') processDownload();
   });
+
+  if (cardDownloadBtn) {
+    cardDownloadBtn.addEventListener('click', () => {
+      if (currentMedia) {
+        progressTracker.classList.remove('hidden');
+        progressTracker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        executeDownload();
+      } else {
+        processDownload();
+      }
+    });
+  }
 
   async function processDownload() {
     const url = urlInput.value.trim();
@@ -777,6 +791,9 @@
     if (summaryEl) {
       summaryEl.textContent = `${selectedOption.label} — ${selectedOption.ext.toUpperCase()}`;
     }
+    if (cardDownloadBtnText) {
+      cardDownloadBtnText.textContent = selectedOption.is_audio ? 'Download Audio (MP3)' : `Download Video (${selectedOption.label})`;
+    }
   }
 
   // Execute Download Trigger
@@ -887,9 +904,11 @@
 
     // C. Static Web App Details & Stream Preview for YouTube / Dailymotion
     progressBarFill.style.width = '100%';
-    progressPctText.textContent = 'Ready';
-    progressStatusText.textContent = 'Media Details & Stream Ready';
+    progressPctText.textContent = '100%';
+    progressStatusText.textContent = 'Download Ready!';
     completeMessageText.innerHTML = `<strong>${escapeHtml(currentMedia.title)}</strong>`;
+
+    const downloadWebUrl = `https://en.savefrom.net/#url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
@@ -898,14 +917,22 @@
             <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
             <polyline points="22 4 12 14.01 9 11.01"></polyline>
           </svg>
-          <strong>Video Information & Stream Preview</strong>
+          <strong>Download Ready — ${escapeHtml(currentMedia.platform.toUpperCase())} Video</strong>
         </div>
         <p class="notice-text">
-          Uploader: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong> • Platform: <strong>${escapeHtml(currentMedia.platform.toUpperCase())}</strong>
+          Selected: <strong>${escapeHtml(selectedOption.label)} (${escapeHtml(selectedOption.ext.toUpperCase())})</strong> • Uploader: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
         </p>
         <div class="stream-action-row">
+          <a href="${downloadWebUrl}" target="_blank" rel="noopener noreferrer" class="direct-dl-btn primary" id="mainDownloadBtn">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Download ${selectedOption.is_audio ? 'Audio (MP3)' : `MP4 Video (${escapeHtml(selectedOption.label)})`}
+          </a>
           ${currentMedia.embed_url ? `
-            <button type="button" class="direct-dl-btn primary" id="launchPlayerBtn">
+            <button type="button" class="direct-dl-btn secondary" id="launchPlayerBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
               Watch Video Stream
             </button>
@@ -930,6 +957,18 @@
         </div>
       </div>
     `;
+
+    document.getElementById('mainDownloadBtn')?.addEventListener('click', () => {
+      saveHistoryItem({
+        id: Date.now().toString(),
+        title: currentMedia.title,
+        thumbnail: currentMedia.thumbnail,
+        platform: currentMedia.platform,
+        label: selectedOption.label,
+        downloadUrl: downloadWebUrl,
+        date: new Date().toISOString()
+      });
+    });
 
     document.getElementById('launchPlayerBtn')?.addEventListener('click', () => {
       startEmbedPlayer(currentMedia.embed_url);
