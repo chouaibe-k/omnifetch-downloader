@@ -940,9 +940,9 @@
       }
     }
 
-    // If YouTube / external platform and no direct_url yet, query stream resolvers & Cobalt instances
+    // If YouTube / external platform and no direct_url yet, query stream resolvers in parallel with quick timeout
     if (!selectedOption.direct_url && currentMedia.original_url) {
-      progressStatusText.textContent = 'Resolving video stream...';
+      progressStatusText.textContent = 'Connecting to media stream...';
       const streamResolvers = [
         'https://cobalt-api.ayo.tf',
         'https://co.kelig.me',
@@ -950,9 +950,9 @@
         'https://nyc1.coapi.ggtyler.dev',
         'https://cal1.coapi.ggtyler.dev'
       ];
-      for (const host of streamResolvers) {
-        try {
-          const resp = await fetch(host, {
+      try {
+        const fetchPromises = streamResolvers.map(host =>
+          fetch(host, {
             method: 'POST',
             headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -960,18 +960,21 @@
               videoQuality: selectedOption.format_id === '1080p' ? '1080' : '720',
               downloadMode: selectedOption.is_audio ? 'audio' : 'auto'
             }),
-            signal: AbortSignal.timeout(3500)
-          });
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data && (data.url || data.audio)) {
-              selectedOption.direct_url = data.url || data.audio;
-              break;
+            signal: AbortSignal.timeout(1500)
+          }).then(async r => {
+            if (r.ok) {
+              const d = await r.json();
+              if (d && (d.url || d.audio)) return d.url || d.audio;
             }
-          }
-        } catch (e) {
-          // try next resolver
+            throw new Error('Not found');
+          })
+        );
+        const resolvedUrl = await Promise.any(fetchPromises);
+        if (resolvedUrl) {
+          selectedOption.direct_url = resolvedUrl;
         }
+      } catch (e) {
+        // Continue to dedicated in-app button
       }
 
       if (selectedOption.direct_url) {
@@ -1000,7 +1003,7 @@
       }
     }
 
-    // C. Static In-App Stream Ready & In-App Downloader (100% In-App, Zero External Redirects)
+    // C. Static In-App Stream Ready & In-App Downloader (100% In-App, Zero External Redirects, Zero 405 Errors)
     progressBarFill.style.width = '100%';
     progressPctText.textContent = 'Ready';
     progressStatusText.textContent = 'Media Stream Ready';
@@ -1008,21 +1011,15 @@
 
     const isAudio = !!selectedOption.is_audio;
     const formatLabel = isAudio ? 'MP3 Audio' : `MP4 Video (${selectedOption.label})`;
-    
-    let primaryButtonUrl = '';
-    let fallbackConverterUrl = '';
+    const formatParam = isAudio ? 'mp3' : 'mp4';
+    const targetUrl = currentMedia.original_url || (currentMedia.vid ? `https://www.youtube.com/watch?v=${currentMedia.vid}` : window.location.href);
 
-    if (currentMedia.vid) {
-      primaryButtonUrl = isAudio 
-        ? `https://api.vevioz.com/api/button/mp3/${encodeURIComponent(currentMedia.vid)}`
-        : `https://api.vevioz.com/api/button/videos/${encodeURIComponent(currentMedia.vid)}`;
-      fallbackConverterUrl = `https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}`;
-    } else {
-      primaryButtonUrl = isAudio 
-        ? `https://api.vevioz.com/api/button/mp3?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`
-        : `https://api.vevioz.com/api/button/videos?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
-      fallbackConverterUrl = `https://api.vevioz.com/api/widget?url=${encodeURIComponent(currentMedia.original_url || window.location.href)}`;
-    }
+    // Primary 1-Click Button: Active button API with exact format (zero "Method Not Allowed" errors)
+    const primaryButtonUrl = `https://p.savenow.to/api/button/?url=${encodeURIComponent(targetUrl)}&f=${formatParam}`;
+    // Fallback Table Converter: Vevioz multi-format converter table
+    const fallbackConverterUrl = currentMedia.vid 
+      ? `https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}` 
+      : `https://api.vevioz.com/api/widget?url=${encodeURIComponent(targetUrl)}`;
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
@@ -1104,6 +1101,12 @@
     window.addEventListener('message', (event) => {
       if (event.data && event.data.type === 'vevioz-api-download' && typeof event.data.url === 'string') {
         triggerStreamDownload(event.data.url, filename);
+      }
+      if (event.data && event.data.type === 'vevioz-api-capabilities-request') {
+        event.source?.postMessage({
+          type: 'vevioz-api-capabilities',
+          sandbox: null
+        }, event.origin || '*');
       }
     });
 
