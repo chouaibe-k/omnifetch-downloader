@@ -940,41 +940,86 @@
       }
     }
 
-    // If YouTube / external platform and no direct_url yet, query stream resolvers in parallel with quick timeout
-    if (!selectedOption.direct_url && currentMedia.original_url) {
-      progressStatusText.textContent = 'Connecting to media stream...';
-      const streamResolvers = [
-        'https://cobalt-api.ayo.tf',
-        'https://co.kelig.me',
-        'https://dl.haloz.at',
-        'https://nyc1.coapi.ggtyler.dev',
-        'https://cal1.coapi.ggtyler.dev'
-      ];
+    // If YouTube / external platform and no direct_url yet, query stream resolvers in parallel
+    if (!selectedOption.direct_url && (currentMedia.vid || currentMedia.original_url)) {
+      progressStatusText.textContent = selectedOption.is_audio ? 'Resolving high-quality audio stream...' : 'Resolving media stream...';
+      progressBarFill.style.width = '40%';
+      progressPctText.textContent = '40%';
+
+      const isAudio = !!selectedOption.is_audio;
+      const vid = currentMedia.vid;
+      const targetUrl = currentMedia.original_url || (vid ? `https://www.youtube.com/watch?v=${vid}` : '');
+
+      const resolverPromises = [];
+
+      // 1. Piped API Resolvers (Clean direct media streams, zero ads)
+      if (vid) {
+        const pipedHosts = [
+          'https://api.piped.private.coffee',
+          'https://pipedapi.kavin.rocks',
+          'https://piped-api.lunar.icu'
+        ];
+        pipedHosts.forEach(host => {
+          resolverPromises.push(
+            fetch(`${host}/streams/${encodeURIComponent(vid)}`, {
+              signal: AbortSignal.timeout(3500)
+            }).then(async r => {
+              if (r.ok) {
+                const d = await r.json();
+                if (isAudio && d.audioStreams && d.audioStreams.length > 0) {
+                  return d.audioStreams[0].url;
+                }
+                if (!isAudio && d.videoStreams && d.videoStreams.length > 0) {
+                  // Prefer non-videoOnly streams or highest quality
+                  const combined = d.videoStreams.find(s => !s.videoOnly) || d.videoStreams[0];
+                  return combined.url;
+                }
+                if (d.audioStreams && d.audioStreams[0]) return d.audioStreams[0].url;
+              }
+              throw new Error('Not found on Piped host');
+            })
+          );
+        });
+      }
+
+      // 2. Headless Cobalt API Resolvers
+      if (targetUrl) {
+        const cobaltHosts = [
+          'https://cobalt-api.ayo.tf',
+          'https://co.kelig.me',
+          'https://dl.haloz.at',
+          'https://nyc1.coapi.ggtyler.dev',
+          'https://cal1.coapi.ggtyler.dev'
+        ];
+        cobaltHosts.forEach(host => {
+          resolverPromises.push(
+            fetch(host, {
+              method: 'POST',
+              headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: targetUrl,
+                videoQuality: selectedOption.format_id === '1080p' ? '1080' : '720',
+                downloadMode: isAudio ? 'audio' : 'auto'
+              }),
+              signal: AbortSignal.timeout(3500)
+            }).then(async r => {
+              if (r.ok) {
+                const d = await r.json();
+                if (d && (d.url || d.audio)) return d.url || d.audio;
+              }
+              throw new Error('Not found on Cobalt host');
+            })
+          );
+        });
+      }
+
       try {
-        const fetchPromises = streamResolvers.map(host =>
-          fetch(host, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: currentMedia.original_url,
-              videoQuality: selectedOption.format_id === '1080p' ? '1080' : '720',
-              downloadMode: selectedOption.is_audio ? 'audio' : 'auto'
-            }),
-            signal: AbortSignal.timeout(1500)
-          }).then(async r => {
-            if (r.ok) {
-              const d = await r.json();
-              if (d && (d.url || d.audio)) return d.url || d.audio;
-            }
-            throw new Error('Not found');
-          })
-        );
-        const resolvedUrl = await Promise.any(fetchPromises);
+        const resolvedUrl = await Promise.any(resolverPromises);
         if (resolvedUrl) {
           selectedOption.direct_url = resolvedUrl;
         }
       } catch (e) {
-        // Continue to dedicated in-app button
+        console.log('Stream resolvers unreached, rendering in-app direct station');
       }
 
       if (selectedOption.direct_url) {
@@ -1003,7 +1048,7 @@
       }
     }
 
-    // C. Static In-App Stream Ready & In-App Downloader (100% In-App, Zero External Redirects, Zero 405 Errors)
+    // C. 100% In-App Direct Stream Station (Zero External Redirects, Zero Third-Party Iframes, Zero Ads)
     progressBarFill.style.width = '100%';
     progressPctText.textContent = 'Ready';
     progressStatusText.textContent = 'Media Stream Ready';
@@ -1011,15 +1056,6 @@
 
     const isAudio = !!selectedOption.is_audio;
     const formatLabel = isAudio ? 'MP3 Audio' : `MP4 Video (${selectedOption.label})`;
-    const formatParam = isAudio ? 'mp3' : 'mp4';
-    const targetUrl = currentMedia.original_url || (currentMedia.vid ? `https://www.youtube.com/watch?v=${currentMedia.vid}` : window.location.href);
-
-    // Primary 1-Click Button: Active button API with exact format (zero "Method Not Allowed" errors)
-    const primaryButtonUrl = `https://p.savenow.to/api/button/?url=${encodeURIComponent(targetUrl)}&f=${formatParam}`;
-    // Fallback Table Converter: Vevioz multi-format converter table
-    const fallbackConverterUrl = currentMedia.vid 
-      ? `https://api.vevioz.com/${encodeURIComponent(currentMedia.vid)}` 
-      : `https://api.vevioz.com/api/widget?url=${encodeURIComponent(targetUrl)}`;
 
     downloadButtonsContainer.innerHTML = `
       <div class="direct-notice-box">
@@ -1043,25 +1079,17 @@
           Target: <strong>${escapeHtml(formatLabel)}</strong> • Creator: <strong>${escapeHtml(currentMedia.uploader || 'Creator')}</strong>
         </p>
 
-        <div class="inapp-converter-box">
-          <div class="inapp-converter-title">
-            ${isAudio ? `
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#8b5cf6" stroke-width="2.2"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>
-              <strong>Direct ${escapeHtml(formatLabel)} Downloader</strong>
-            ` : `
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-              <strong>Direct ${escapeHtml(formatLabel)} Downloader</strong>
-            `}
-          </div>
-          <p class="inapp-converter-subtitle">Click the download button below to save your ${isAudio ? 'MP3 audio track' : 'MP4 video'} directly to your Downloads folder:</p>
-          <div class="inapp-button-frame-wrapper" id="inappWrapper">
-            <iframe id="inappDownloaderFrame" class="inapp-button-frame" src="${primaryButtonUrl}" allow="clipboard-write; downloads" scrolling="no"></iframe>
-          </div>
-        </div>
-
         <div class="stream-action-row">
+          <button type="button" class="direct-dl-btn primary" id="startDirectDownloadBtn">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="7 10 12 15 17 10"></polyline>
+              <line x1="12" y1="15" x2="12" y2="3"></line>
+            </svg>
+            Save ${escapeHtml(formatLabel)} to Downloads
+          </button>
           ${isAudio ? `
-            <button type="button" class="direct-dl-btn primary" id="switchToVideoBtn">
+            <button type="button" class="direct-dl-btn secondary" id="switchToVideoBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                 <polyline points="7 10 12 15 17 10"></polyline>
@@ -1070,7 +1098,7 @@
               Switch to MP4 Video Download
             </button>
           ` : `
-            <button type="button" class="direct-dl-btn primary" id="switchToAudioBtn">
+            <button type="button" class="direct-dl-btn secondary" id="switchToAudioBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.3">
                 <path d="M9 18V5l12-2v13"></path>
                 <circle cx="6" cy="18" r="3"></circle>
@@ -1079,10 +1107,6 @@
               Switch to MP3 Audio Only
             </button>
           `}
-          <button type="button" class="direct-dl-btn secondary" id="toggleMirrorBtn">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline></svg>
-            <span id="toggleMirrorText">Alternative Converter Table</span>
-          </button>
           ${currentMedia.embed_url ? `
             <button type="button" class="direct-dl-btn secondary" id="launchPlayerBtn">
               <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
@@ -1091,43 +1115,17 @@
           ` : ''}
           <button type="button" class="direct-dl-btn secondary" id="copyDetailsBtn">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-            Copy Info
+            Copy Video Info
           </button>
         </div>
       </div>
     `;
 
-    // Listen for in-app download trigger from iframe
-    window.addEventListener('message', (event) => {
-      if (event.data && event.data.type === 'vevioz-api-download' && typeof event.data.url === 'string') {
-        triggerStreamDownload(event.data.url, filename);
-      }
-      if (event.data && event.data.type === 'vevioz-api-capabilities-request') {
-        event.source?.postMessage({
-          type: 'vevioz-api-capabilities',
-          sandbox: null
-        }, event.origin || '*');
-      }
-    });
-
-    let isMirrorActive = false;
-    document.getElementById('toggleMirrorBtn')?.addEventListener('click', () => {
-      isMirrorActive = !isMirrorActive;
-      const frame = document.getElementById('inappDownloaderFrame');
-      const wrapper = document.getElementById('inappWrapper');
-      const text = document.getElementById('toggleMirrorText');
-      if (frame && wrapper) {
-        if (isMirrorActive) {
-          frame.src = fallbackConverterUrl;
-          wrapper.style.height = '280px';
-          frame.style.height = '275px';
-          if (text) text.textContent = 'Switch to Single Quick Button';
-        } else {
-          frame.src = primaryButtonUrl;
-          wrapper.style.height = '75px';
-          frame.style.height = '75px';
-          if (text) text.textContent = 'Alternative Converter Table';
-        }
+    document.getElementById('startDirectDownloadBtn')?.addEventListener('click', () => {
+      if (selectedOption.direct_url) {
+        triggerStreamDownload(selectedOption.direct_url, filename);
+      } else {
+        executeDownload();
       }
     });
 

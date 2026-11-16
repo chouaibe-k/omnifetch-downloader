@@ -40,7 +40,8 @@ public class MainActivity extends BridgeActivity {
                 webSettings.setDatabaseEnabled(true);
                 webSettings.setAllowFileAccess(true);
                 webSettings.setAllowContentAccess(true);
-                webSettings.setJavaScriptCanOpenWindowsAutomatically(true);
+                webSettings.setJavaScriptCanOpenWindowsAutomatically(false);
+                webSettings.setSupportMultipleWindows(false);
 
                 // Expose AndroidBridge into JavaScript context
                 webView.addJavascriptInterface(new AndroidBridge(this), "AndroidBridge");
